@@ -39,9 +39,11 @@ TZ = os.getenv("TZ", "Asia/Tokyo")
 # calling the Gemini API. Used for local development or during a Gemini
 # outage rehearsal.
 GEMINI_MOCK_MODE = os.getenv("GEMINI_MOCK_MODE", "false").lower() == "true"
-# gemini-2.5-flash-lite is the current free-tier friendly Flash Lite model.
-# gemini-2.0-flash-lite returned quota errors on the free tier as of 2026-07.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+# gemini-flash-lite-latest is a rolling alias for the current Flash Lite
+# release. It is preferred over gemini-2.5-flash-lite because the fixed
+# 2.5-lite alias is capped at 20 requests per day on the free tier
+# (measured 2026-07); the rolling alias has a much larger daily quota.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
 # ---------------------------------------------------------------------------
 # LINE SDK singletons
