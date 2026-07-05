@@ -69,21 +69,23 @@ def handle_postback(event: PostbackEvent) -> None:
 
     if data.startswith("profile:"):
         # Guard: user must be a student.
-        if users.get_role(user_id) != "student":
-            reply_text(event.reply_token, "この操作は学生アカウント向けです。")
+        role = users.get_role(user_id)
+        if role != "student":
+            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
             return
         student.handle_profile_postback(event, data)
         return
 
     if data.startswith("activity:"):
-        if users.get_role(user_id) != "student":
-            reply_text(event.reply_token, "この操作は学生アカウント向けです。")
+        role = users.get_role(user_id)
+        if role != "student":
+            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
             return
         _handle_activity(event, data)
         return
 
     logger.warning("Unknown postback data: %s", data)
-    reply_text(event.reply_token, "未対応のアクションです。")
+    _reply_placeholder(event, users.get_role(user_id), "未対応のアクションです。")
 
 
 def _handle_activity(event: PostbackEvent, data: str) -> None:
@@ -98,7 +100,9 @@ def _handle_activity(event: PostbackEvent, data: str) -> None:
         return
 
     logger.warning("Unknown activity postback: %s", data)
-    reply_text(event.reply_token, "未対応の操作です。")
+    _reply_placeholder(
+        event, users.get_role(event.source.user_id), "未対応の操作です。"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,31 +148,27 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "post":
-        reply_text(
-            event.reply_token,
-            "✏️ 経験投稿機能は Day 3 で実装予定です。",
+        _reply_placeholder(
+            event, role, "✏️ 経験投稿機能は Day 3 で実装予定です。"
         )
         return
 
     if action == "invite":
-        reply_text(
-            event.reply_token,
+        _reply_placeholder(
+            event,
+            role,
             "👨\u200d👩\u200d👧 保護者連携機能は Day 3 で実装予定です。",
         )
         return
 
     if action == "monthly_report":
-        reply_text(
-            event.reply_token,
-            "📊 月次レポート機能は Day 3 で実装予定です。",
+        _reply_placeholder(
+            event, role, "📊 月次レポート機能は Day 3 で実装予定です。"
         )
         return
 
     if action == "link_student":
-        reply_text(
-            event.reply_token,
-            "🔗 学生連携機能は Day 3 で実装予定です。",
-        )
+        _reply_placeholder(event, role, "🔗 学生連携機能は Day 3 で実装予定です。")
         return
 
     if action == "main":
@@ -184,4 +184,19 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     logger.warning("Unknown menu action: %s", action)
-    reply_text(event.reply_token, "未対応のアクションです。")
+    _reply_placeholder(event, role, "未対応のアクションです。")
+
+
+def _reply_placeholder(
+    event: PostbackEvent, role: str | None, text: str
+) -> None:
+    """Terminal reply with role-aware Quick Reply (docs §3.4)."""
+    if role is None:
+        welcome_text, qr = build_welcome_message()
+        reply_text(
+            event.reply_token,
+            f"{text}\n\n{welcome_text}",
+            quick_reply=qr,
+        )
+        return
+    reply_text(event.reply_token, text, quick_reply=main_menu_quick_reply(role))

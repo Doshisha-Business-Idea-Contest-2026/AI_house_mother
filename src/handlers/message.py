@@ -74,7 +74,7 @@ def handle_text(event: MessageEvent) -> None:
     # ------------------------------------------------------------------
     if text in CANCEL_COMMANDS:
         session.clear_state(user_id)
-        reply_text(event.reply_token, "操作をキャンセルしました。")
+        _reply_placeholder(event, user_id, "操作をキャンセルしました。")
         return
 
     if text in RESTART_COMMANDS:
@@ -95,9 +95,8 @@ def handle_text(event: MessageEvent) -> None:
 
     if text in ROLE_SWITCH_COMMANDS:
         session.clear_state(user_id)
-        reply_text(
-            event.reply_token,
-            "役割変更機能は準備中です。（Day 4 で実装予定）",
+        _reply_placeholder(
+            event, user_id, "役割変更機能は準備中です。（Day 4 で実装予定）"
         )
         return
 
@@ -133,9 +132,8 @@ def handle_text(event: MessageEvent) -> None:
 
     if text in POST_COMMANDS:
         session.clear_state(user_id)
-        reply_text(
-            event.reply_token,
-            "✏️ 経験投稿機能は Day 3 で実装予定です。",
+        _reply_placeholder(
+            event, user_id, "✏️ 経験投稿機能は Day 3 で実装予定です。"
         )
         return
 
@@ -164,16 +162,12 @@ def handle_text(event: MessageEvent) -> None:
         student.handle_life_consultation(event)
         return
 
-    # Short unrecognised text → gentle prompt.
-    role = users.get_role(user_id)
-    if role is None:
-        reply_text(event.reply_token, HELP_UNREGISTERED)
-    else:
-        reply_text(
-            event.reply_token,
-            "もう少し詳しく教えてください。もしくは下のメニューから選んでください👇",
-            quick_reply=main_menu_quick_reply(role),
-        )
+    # Short unrecognised text → gentle prompt (§3.4).
+    _reply_placeholder(
+        event,
+        user_id,
+        "もう少し詳しく教えてください。もしくは下のメニューから選んでください👇",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +178,13 @@ def handle_text(event: MessageEvent) -> None:
 def _reply_help(event: MessageEvent, user_id: str) -> None:
     role = users.get_role(user_id) if user_id else None
     if role is None:
-        reply_text(event.reply_token, HELP_UNREGISTERED)
+        # Unregistered users get the welcome + role Quick Reply per §3.4.
+        welcome_text, qr = build_welcome_message()
+        reply_text(
+            event.reply_token,
+            f"{HELP_UNREGISTERED}\n\n{welcome_text}",
+            quick_reply=qr,
+        )
     elif role == "student":
         reply_text(
             event.reply_token,
@@ -210,6 +210,26 @@ def _reply_main_menu(event: MessageEvent, user_id: str) -> None:
         "メインメニューです。下のボタンから選んでください👇",
         quick_reply=main_menu_quick_reply(role),
     )
+
+
+def _reply_placeholder(event: MessageEvent, user_id: str, text: str) -> None:
+    """Send a terminal reply with the role-appropriate main menu Quick Reply.
+
+    Implements the §3.4 terminal-reply rule of docs/04_functional_spec.md:
+    cancel / placeholder / error replies must never leave the user
+    stranded without a next-action prompt. Unregistered users are
+    redirected to the welcome message with the role selection QR.
+    """
+    role = users.get_role(user_id) if user_id else None
+    if role is None:
+        welcome_text, qr = build_welcome_message()
+        reply_text(
+            event.reply_token,
+            f"{text}\n\n{welcome_text}",
+            quick_reply=qr,
+        )
+        return
+    reply_text(event.reply_token, text, quick_reply=main_menu_quick_reply(role))
 
 
 def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
