@@ -1,4 +1,5 @@
 """LINE webhook and health-check endpoints."""
+import asyncio
 import logging
 from datetime import datetime
 
@@ -33,12 +34,20 @@ async def callback(request: Request) -> str:
     logger.info("Webhook received: %s...", body[:100])
 
     try:
-        # TODO(Day2): once Gemini is added, wrap with
-        # asyncio.to_thread(handler.handle, body, signature) to avoid
-        # blocking the FastAPI event loop.
-        handler.handle(body, signature)
+        # Offloading the (synchronous) LINE dispatcher lets Gemini calls
+        # made inside handlers run without blocking the FastAPI event
+        # loop. FastAPI's default thread pool is shared across `run_in_
+        # threadpool` and `asyncio.to_thread`, capped at 40 workers, which
+        # is plenty for a --workers 1 uvicorn deployment.
+        await asyncio.to_thread(handler.handle, body, signature)
     except InvalidSignatureError:
         logger.error("Invalid signature")
         raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception:
+        # Handler-level exceptions must not surface to LINE (which would
+        # retry, potentially duplicating side effects). We log the trace
+        # and return 200; user-facing errors are already reported inline
+        # by the handlers.
+        logger.exception("Unhandled error in handler")
 
     return "OK"
