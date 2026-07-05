@@ -72,9 +72,15 @@ def reply_flex(
         logger.exception("reply_flex failed")
 
 
-def push_text(line_user_id: str, text: str) -> None:
+def push_text(
+    line_user_id: str,
+    text: str,
+    quick_reply: Optional[QuickReply] = None,
+) -> None:
     """Push a plain text message to ``line_user_id``."""
     message = TextMessage(text=text)
+    if quick_reply is not None:
+        message.quick_reply = quick_reply
     try:
         with ApiClient(configuration) as api_client:
             cl = MessagingApi(api_client)
@@ -85,9 +91,16 @@ def push_text(line_user_id: str, text: str) -> None:
         logger.exception("push_text failed")
 
 
-def push_flex(line_user_id: str, alt_text: str, contents: dict) -> None:
+def push_flex(
+    line_user_id: str,
+    alt_text: str,
+    contents: dict,
+    quick_reply: Optional[QuickReply] = None,
+) -> None:
     """Push a Flex message to ``line_user_id``."""
     message = FlexMessage(alt_text=alt_text, contents=FlexContainer.from_dict(contents))
+    if quick_reply is not None:
+        message.quick_reply = quick_reply
     try:
         with ApiClient(configuration) as api_client:
             cl = MessagingApi(api_client)

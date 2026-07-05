@@ -1,0 +1,167 @@
+"""Prompt templates for Gemini.
+
+Centralising these strings keeps the AI behaviour reviewable in one
+place. See ``docs/06_ai_spec.md`` for design notes.
+"""
+from typing import Any
+
+
+SYSTEM_PROMPT_COMMON = """あなたは「AI寮母」という LINE Bot のアシスタントです。
+京都・同志社大学周辺の学生マンションに住む学生と、その保護者をサポートします。
+
+以下のルールを厳守してください:
+
+【禁止事項】
+- 医療行為の診断や処方をしない。症状の説明を受けたら「症状が続くなら医療機関を受診してください」に誘導する。
+- 法律相談に断定的に答えない。「弁護士や行政窓口に相談してください」と誘導する。
+- 緊急事態（119/110 事案）は即座に該当窓口を案内する。
+- 実在する店舗・病院・施設について、古い情報の可能性があることを一言添える。
+- ユーザー本人が登録した情報以外の個人情報を漏らさない。
+
+【トーン】
+- 親しみやすい寮母のような語り口（ですます調、絵文字は控えめに 1〜2 個）。
+- 学生には気さくに、保護者には丁寧に。
+- 断定を避け、選択肢を示す。
+
+【情報源】
+- ユーザーのプロフィール、過去の投稿、地域情報、先輩投稿を参照して回答する。
+- 情報がない場合は「わからない」と正直に答える。
+- 参照した先輩投稿がある場合、「先輩の体験より」と注記する。
+"""
+
+
+def _summarise_profile(profile: dict[str, Any] | None) -> str:
+    if not profile:
+        return "（未登録）"
+    interests = " / ".join(profile.get("interests") or []) or "（未設定）"
+    return (
+        f"- 大学: {profile.get('university', '(未設定)')}\n"
+        f"- 学部: {profile.get('faculty', '(未設定)')}\n"
+        f"- 学年: {profile.get('grade', '(未設定)')}\n"
+        f"- 興味: {interests}\n"
+        f"- 最近頑張っていること: {profile.get('recent_effort') or '(未設定)'}\n"
+        f"- やってみたいこと: {profile.get('want_to_do') or '(未設定)'}"
+    )
+
+
+def _summarise_areas(areas: list[dict[str, Any]]) -> str:
+    return "\n".join(
+        f"- {a['name']} ({a['category']}): {a['description']}" for a in areas
+    )
+
+
+def _summarise_stores(stores: list[dict[str, Any]]) -> str:
+    if not stores:
+        return "（該当なし）"
+    return "\n".join(
+        f"- {s['name']} ({s.get('category', '')}, {s.get('area', '')}): {s.get('description', '')}"
+        for s in stores
+    )
+
+
+def _summarise_events(events: list[dict[str, Any]]) -> str:
+    if not events:
+        return "（該当なし）"
+    return "\n".join(
+        f"- {e['name']} ({e.get('category', '')}, {e.get('area', '')}): {e.get('description', '')} 日程: {e.get('schedule', '')}"
+        for e in events
+    )
+
+
+def _summarise_senior_posts(posts: list[dict[str, Any]]) -> str:
+    if not posts:
+        return "（該当なし）"
+    return "\n".join(
+        f"- {p.get('author_pseudonym', '先輩')}「{p.get('title', '')}」: {p.get('body', '')[:200]}"
+        for p in posts
+    )
+
+
+# ---------------------------------------------------------------------------
+# Function-level prompt builders
+# ---------------------------------------------------------------------------
+
+
+def build_activity_prompt(
+    profile: dict[str, Any] | None,
+    areas: list[dict[str, Any]],
+    stores: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    senior_posts: list[dict[str, Any]],
+) -> str:
+    """Prompt used by ``propose_activities``."""
+    return (
+        SYSTEM_PROMPT_COMMON
+        + "\n\n【今回の依頼】\n"
+        "学生から「何かやりたい」と相談を受けています。\n"
+        "以下のプロフィールと地域データから、2〜3 件の活動を提案してください。\n\n"
+        "【学生プロフィール】\n"
+        + _summarise_profile(profile)
+        + "\n\n【地域情報】\n"
+        + _summarise_areas(areas)
+        + "\n\n【学生向け店舗（興味に応じて抽出）】\n"
+        + _summarise_stores(stores)
+        + "\n\n【地域イベント・ボランティア（全件）】\n"
+        + _summarise_events(events)
+        + "\n\n【関連する先輩投稿】\n"
+        + _summarise_senior_posts(senior_posts)
+        + "\n\n【出力形式】\n"
+        "以下の JSON 配列のみを返してください。各要素は必ず title/summary/why_recommend/reference_type を含めます。\n"
+        "reference_type は event/volunteer/store/senior_post/generated のいずれか。\n"
+        "2〜3 件、必ず出力してください。\n"
+    )
+
+
+def build_life_consultation_prompt(
+    profile: dict[str, Any] | None,
+    user_message: str,
+    stores: list[dict[str, Any]],
+    areas: list[dict[str, Any]],
+    senior_posts: list[dict[str, Any]],
+) -> str:
+    """Prompt used by ``answer_life_question``."""
+    return (
+        SYSTEM_PROMPT_COMMON
+        + "\n\n【今回の依頼】\n"
+        "学生から生活相談が届きました。地域情報と先輩投稿を参照して回答してください。\n\n"
+        "【学生プロフィール】\n"
+        + _summarise_profile(profile)
+        + "\n\n【関連する店舗】\n"
+        + _summarise_stores(stores)
+        + "\n\n【関連する地域情報】\n"
+        + _summarise_areas(areas)
+        + "\n\n【関連する先輩投稿】\n"
+        + _summarise_senior_posts(senior_posts)
+        + f"\n\n【学生の発言】\n{user_message}\n\n"
+        "【回答時の注意】\n"
+        "- 参照した先輩投稿がある場合、「先輩の体験より: ...」と 1 文添える。\n"
+        "- 医療的な内容なら「症状が続く場合は医療機関を受診してください」を必ず含める。\n"
+        "- 緊急を疑う場合は #7119（京都府救急安心センター）や 119 を案内する。\n"
+        "- 実在の店舗・病院名は「情報が古い可能性があります」と注記する。\n"
+        "- 300 文字以内でまとめる。\n\n"
+        "回答:"
+    )
+
+
+def build_activity_detail_prompt(
+    profile: dict[str, Any] | None, activity: dict[str, Any]
+) -> str:
+    """Prompt used by ``answer_activity_detail`` (Flex card follow-up)."""
+    return (
+        SYSTEM_PROMPT_COMMON
+        + "\n\n【今回の依頼】\n"
+        "学生が以下の活動について詳しく知りたがっています。\n\n"
+        "【対象活動】\n"
+        f"タイトル: {activity.get('title', '')}\n"
+        f"概要: {activity.get('summary', '')}\n"
+        f"場所: {activity.get('location', '不明')}\n"
+        f"時期: {activity.get('when', '不明')}\n"
+        f"種別: {activity.get('reference_type', '')}\n\n"
+        "【学生プロフィール】\n"
+        + _summarise_profile(profile)
+        + "\n\n【回答時の注意】\n"
+        "- どうやって参加するか、準備物、注意点を簡潔にまとめる。\n"
+        "- 情報がない部分は「担当者に問い合わせてみてください」と誘導する。\n"
+        "- 300 文字以内。\n\n"
+        "回答:"
+    )

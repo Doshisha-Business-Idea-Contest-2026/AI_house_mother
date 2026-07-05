@@ -35,6 +35,14 @@ FASTAPI_PORT = int(os.getenv("FASTAPI_PORT", "8084"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 TZ = os.getenv("TZ", "Asia/Tokyo")
 
+# When true, gemini.py returns seed-based static fallback answers instead of
+# calling the Gemini API. Used for local development or during a Gemini
+# outage rehearsal.
+GEMINI_MOCK_MODE = os.getenv("GEMINI_MOCK_MODE", "false").lower() == "true"
+# gemini-2.5-flash-lite is the current free-tier friendly Flash Lite model.
+# gemini-2.0-flash-lite returned quota errors on the free tier as of 2026-07.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
 # ---------------------------------------------------------------------------
 # LINE SDK singletons
 # ---------------------------------------------------------------------------
