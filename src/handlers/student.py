@@ -25,6 +25,7 @@ from src.services import (
     context_search,
     gemini,
     profiles,
+    prompts,
     session,
     users,
 )
@@ -487,7 +488,10 @@ def handle_life_consultation(event: MessageEvent) -> None:
     """Process a life-consultation message and reply.
 
     Emergency keywords short-circuit the Gemini call and route to canned
-    guidance instead.
+    guidance instead. Otherwise Gemini is invoked; when the seed context
+    is empty (``total_hits == 0``) the reply is wrapped with a
+    Zero-context disclaimer and, for medical topics, the #7119 followup
+    (see docs/06_ai_spec.md §5.3).
     """
     user_id = event.source.user_id
     text = event.message.text.strip()
@@ -509,14 +513,43 @@ def handle_life_consultation(event: MessageEvent) -> None:
     reply_text(event.reply_token, "💭 少し考えます…")
 
     profile = profiles.get_profile(user_id)
-    context_hits = context_search.find_relevant_context(text)
+    result = context_search.find_relevant_context(text)
+    zero_context = context_search.should_add_disclaimer(result)
+    medical_intent = context_search.detect_medical_intent(text)
+    total_hits = result["total_hits"]
+
     try:
-        answer = gemini.answer_life_question(profile, text, context_hits)
+        answer = gemini.answer_life_question(
+            profile, text, result, total_hits=total_hits
+        )
     except Exception:
         logger.exception("answer_life_question crashed")
         answer = "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください🙇"
 
-    push_text(user_id, answer, quick_reply=_life_quick_reply())
+    disclaimer_shown = zero_context
+    medical_followup_shown = zero_context and medical_intent
+
+    parts: list[str] = []
+    if disclaimer_shown:
+        parts.append(prompts.ZERO_CONTEXT_DISCLAIMER)
+    parts.append(answer)
+    if medical_followup_shown:
+        parts.append(prompts.MEDICAL_FOLLOWUP)
+    final = "".join(parts)
+
+    logger.info(
+        "life_consultation user=%s total_hits=%d zero_context=%s "
+        "disclaimer_shown=%s medical_followup_shown=%s "
+        "matched_categories=%s",
+        user_id[:8] if user_id else "?",
+        total_hits,
+        zero_context,
+        disclaimer_shown,
+        medical_followup_shown,
+        sorted(result["matched_categories"]),
+    )
+
+    push_text(user_id, final, quick_reply=_life_quick_reply())
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
 

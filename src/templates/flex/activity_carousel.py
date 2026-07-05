@@ -63,12 +63,44 @@ def build_activity_carousel(
 def _build_bubble(
     *, index: int, activity: dict[str, Any], key: str
 ) -> dict[str, Any]:
-    color = get_activity_header_color(activity.get("reference_type", "generated"))
+    reference_type = activity.get("reference_type", "generated")
+    color = get_activity_header_color(reference_type)
     title = activity.get("title") or f"提案 {index}"
     summary = activity.get("summary") or ""
     location = activity.get("location") or ""
     when = activity.get("when") or ""
     why = activity.get("why_recommend") or ""
+
+    # NFR-Truth-1 / docs/04_functional_spec.md §4.3: distinguish AI-invented
+    # suggestions from seed-backed ones with a small caveat line.
+    header_contents: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": f"🎯 提案 {index}",
+            "color": "#ffffff",
+            "size": "sm",
+        },
+    ]
+    if reference_type == "generated":
+        header_contents.append(
+            {
+                "type": "text",
+                "text": "🧭 AI 提案（要確認）",
+                "color": "#ffffff",
+                "size": "xs",
+                "wrap": True,
+            }
+        )
+    header_contents.append(
+        {
+            "type": "text",
+            "text": title,
+            "color": "#ffffff",
+            "size": "xl",
+            "weight": "bold",
+            "wrap": True,
+        }
+    )
 
     body_contents: list[dict[str, Any]] = [
         {
@@ -131,22 +163,7 @@ def _build_bubble(
             "layout": "vertical",
             "backgroundColor": color,
             "paddingAll": "16px",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": f"🎯 提案 {index}",
-                    "color": "#ffffff",
-                    "size": "sm",
-                },
-                {
-                    "type": "text",
-                    "text": title,
-                    "color": "#ffffff",
-                    "size": "xl",
-                    "weight": "bold",
-                    "wrap": True,
-                },
-            ],
+            "contents": header_contents,
         },
         "body": {
             "type": "box",

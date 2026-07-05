@@ -3,11 +3,14 @@
 We do not run RAG or embeddings. Instead we do case-insensitive
 substring matching against seed items and score them so the top-k items
 can be fed into the Gemini prompt.
+
+See ``docs/06_ai_spec.md §5.3`` for the Zero-context handling contract
+that this module supports.
 """
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, TypedDict
 
 from src.services import seed
 
@@ -15,6 +18,43 @@ from src.services import seed
 EMERGENCY_LIFE = ["死にたい", "消えたい", "自殺"]
 EMERGENCY_MEDICAL = ["救急", "119", "倒れた", "動けない", "血が"]
 EMERGENCY_CRIME = ["犯罪", "盗まれた", "暴力", "襲われた"]
+
+# Non-emergency medical keywords used to trigger the #7119 followup on
+# Zero-context replies (see docs/06_ai_spec.md §5.3.5). "痛" is a root
+# form so 痛い / 痛く / 痛かった / 頭痛 all match; the few false-
+# positives (e.g. 痛快) are acceptable because the followup only fires
+# under Zero-context anyway.
+MEDICAL_INTENT_KEYWORDS = [
+    "病院",
+    "クリニック",
+    "診療所",
+    "熱",
+    "体調",
+    "薬",
+    "症状",
+    "痛",
+    "怪我",
+    "風邪",
+    "めまい",
+    "吐き気",
+]
+
+
+class ContextSearchResult(TypedDict):
+    """Structured result returned by :func:`find_relevant_context`.
+
+    - ``stores`` / ``areas`` / ``senior_posts`` are the top-k seed items
+      that scored above zero for the current query.
+    - ``total_hits`` is the sum of the three lists' lengths.
+    - ``matched_categories`` is the set of ``category`` fields collected
+      from those items (used later for post-hoc analytics).
+    """
+
+    stores: list[dict[str, Any]]
+    areas: list[dict[str, Any]]
+    senior_posts: list[dict[str, Any]]
+    total_hits: int
+    matched_categories: set[str]
 
 _TOKEN_SPLIT = re.compile(r"[\s、。,.!?！？]+")
 # Filler characters we should not emit as 2-gram tokens.
@@ -76,8 +116,11 @@ def _score(item: dict[str, Any], fields: list[str], tokens: list[str]) -> int:
 
 def find_relevant_context(
     user_message: str, top_k: int = 5
-) -> dict[str, list[dict[str, Any]]]:
-    """Return matched seed items grouped by kind."""
+) -> ContextSearchResult:
+    """Return matched seed items grouped by kind plus aggregate stats.
+
+    See ``docs/06_ai_spec.md §5.3.3`` for the contract.
+    """
     tokens = _tokens(user_message)
 
     def rank(items: list[dict[str, Any]], fields: list[str]) -> list[dict[str, Any]]:
@@ -86,8 +129,38 @@ def find_relevant_context(
         scored.sort(key=lambda x: x[0], reverse=True)
         return [it for _, it in scored[:top_k]]
 
+    stores = rank(seed.get_stores(), ["name", "description", "area"])
+    areas = rank(seed.get_areas(), ["name", "description"])
+    senior_posts = rank(seed.get_senior_posts(), ["title", "body", "area"])
+
+    matched: set[str] = set()
+    for item in (*stores, *areas, *senior_posts):
+        category = item.get("category")
+        if isinstance(category, str) and category:
+            matched.add(category)
+
     return {
-        "stores": rank(seed.get_stores(), ["name", "description", "area"]),
-        "areas": rank(seed.get_areas(), ["name", "description"]),
-        "senior_posts": rank(seed.get_senior_posts(), ["title", "body", "area"]),
+        "stores": stores,
+        "areas": areas,
+        "senior_posts": senior_posts,
+        "total_hits": len(stores) + len(areas) + len(senior_posts),
+        "matched_categories": matched,
     }
+
+
+def should_add_disclaimer(result: ContextSearchResult) -> bool:
+    """Return True when the Zero-context branch must fire.
+
+    MVP: strictly ``total_hits == 0``. See ``docs/06_ai_spec.md §5.3.2``.
+    """
+    return result["total_hits"] == 0
+
+
+def detect_medical_intent(user_message: str) -> bool:
+    """Return True when the message contains non-emergency medical keywords.
+
+    Distinct from :func:`detect_emergency` — this catches everyday medical
+    topics (「病院」「クリニック」「体調」…) so a Zero-context reply can
+    append the #7119 followup. See ``docs/06_ai_spec.md §5.3.5``.
+    """
+    return any(kw in user_message for kw in MEDICAL_INTENT_KEYWORDS)

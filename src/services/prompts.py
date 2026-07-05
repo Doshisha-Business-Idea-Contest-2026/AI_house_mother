@@ -17,6 +17,8 @@ SYSTEM_PROMPT_COMMON = """あなたは「AI寮母」という LINE Bot のアシ
 - 緊急事態（119/110 事案）は即座に該当窓口を案内する。
 - 実在する店舗・病院・施設について、古い情報の可能性があることを一言添える。
 - ユーザー本人が登録した情報以外の個人情報を漏らさない。
+- 情報源（`data/seed/*.json`）に存在しない具体情報（電話番号、営業時間、特定店舗名、特定日程）を断定しない。
+- 情報源に該当が無い場合は、必ず公式窓口や #7119 等の一般的な連絡先へ誘導する。
 
 【トーン】
 - 親しみやすい寮母のような語り口（ですます調、絵文字は控えめに 1〜2 個）。
@@ -28,6 +30,22 @@ SYSTEM_PROMPT_COMMON = """あなたは「AI寮母」という LINE Bot のアシ
 - 情報がない場合は「わからない」と正直に答える。
 - 参照した先輩投稿がある場合、「先輩の体験より」と注記する。
 """
+
+
+# See docs/06_ai_spec.md §5.3.4. Prepend to any Zero-context reply so
+# the user knows the bot lacks a real source for this topic.
+ZERO_CONTEXT_DISCLAIMER = (
+    "ごめんなさい、この話題については先輩の投稿や地域の情報がまだ届いていません🙏\n"
+    "以下は一般的なご案内なので、正確な情報は公式窓口でご確認くださいね。\n\n"
+)
+
+
+# Appended to a Zero-context reply when the message hints at a medical
+# topic (see docs/06_ai_spec.md §5.3.5).
+MEDICAL_FOLLOWUP = (
+    "\n\n体調のご相談は #7119（京都府救急安心センター）でも相談できますよ。\n"
+    "京都市の医療機関検索サイトも参考になります。"
+)
 
 
 def _summarise_profile(profile: dict[str, Any] | None) -> str:
@@ -118,15 +136,36 @@ def build_life_consultation_prompt(
     stores: list[dict[str, Any]],
     areas: list[dict[str, Any]],
     senior_posts: list[dict[str, Any]],
+    *,
+    total_hits: int,
 ) -> str:
-    """Prompt used by ``answer_life_question``."""
+    """Prompt used by ``answer_life_question``.
+
+    When ``total_hits == 0`` the prompt includes an explicit constraint
+    that forbids Gemini from fabricating phone numbers, opening hours,
+    or specific store names (see docs/06_ai_spec.md §5.3).
+    """
+    zero_context = total_hits == 0
+    zero_context_line = (
+        "- **total_hits が 0 なので情報源に該当がありません。地名・電話番号・"
+        "営業時間・特定の店舗名を絶対に断定せず、一般論のみで答え、"
+        "必ず『詳細は公式窓口でご確認ください』と誘導してください。**\n"
+        if zero_context
+        else ""
+    )
+
     return (
         SYSTEM_PROMPT_COMMON
         + "\n\n【今回の依頼】\n"
         "学生から生活相談が届きました。地域情報と先輩投稿を参照して回答してください。\n\n"
         "【学生プロフィール】\n"
         + _summarise_profile(profile)
-        + "\n\n【関連する店舗】\n"
+        + "\n\n【関連情報の件数】\n"
+        f"- stores: {len(stores)} 件\n"
+        f"- areas: {len(areas)} 件\n"
+        f"- senior_posts: {len(senior_posts)} 件\n"
+        f"- total_hits: {total_hits} 件\n"
+        + "\n【関連する店舗】\n"
         + _summarise_stores(stores)
         + "\n\n【関連する地域情報】\n"
         + _summarise_areas(areas)
@@ -138,8 +177,9 @@ def build_life_consultation_prompt(
         "- 医療的な内容なら「症状が続く場合は医療機関を受診してください」を必ず含める。\n"
         "- 緊急を疑う場合は #7119（京都府救急安心センター）や 119 を案内する。\n"
         "- 実在の店舗・病院名は「情報が古い可能性があります」と注記する。\n"
-        "- 300 文字以内でまとめる。\n\n"
-        "回答:"
+        "- 300 文字以内でまとめる。\n"
+        + zero_context_line
+        + "\n回答:"
     )
 
 

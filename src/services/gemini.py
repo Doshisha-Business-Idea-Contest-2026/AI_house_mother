@@ -190,9 +190,19 @@ def propose_activities(
 def answer_life_question(
     profile: dict[str, Any] | None,
     user_message: str,
-    context_hits: dict[str, list[dict[str, Any]]],
+    context_hits: dict[str, Any],
+    *,
+    total_hits: int,
 ) -> str:
-    """Return a Gemini-generated answer for a life-consultation question."""
+    """Return a Gemini-generated answer for a life-consultation question.
+
+    ``total_hits`` must be the aggregate seed hit count from
+    :func:`context_search.find_relevant_context`. When it is 0 the prompt
+    forbids Gemini from inventing concrete facts. The Zero-context
+    disclaimer and medical followup are prepended / appended by the
+    handler layer (``handlers/student.py``) — this function only produces
+    the Gemini body.
+    """
     if GEMINI_MOCK_MODE:
         return (
             "（mock 応答）先輩の体験や地域情報を踏まえた回答をここに表示します。"
@@ -205,6 +215,7 @@ def answer_life_question(
         stores=context_hits.get("stores", []),
         areas=context_hits.get("areas", []),
         senior_posts=context_hits.get("senior_posts", []),
+        total_hits=total_hits,
     )
     answer = call_gemini(
         prompt, temperature=0.5, max_output_tokens=500, timeout=DEFAULT_TIMEOUT_S

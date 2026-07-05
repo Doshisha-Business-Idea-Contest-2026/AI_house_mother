@@ -346,9 +346,9 @@ MEDICAL_FOLLOWUP = (
 
 Zero-context の生活相談で、以下いずれかのキーワードを検出した場合、`MEDICAL_FOLLOWUP` を disclaimer + 一般案内の直後に追加する:
 
-- 「病院」「クリニック」「診療所」「熱」「体調」「薬」「症状」「痛い」「怪我」
+- 「病院」「クリニック」「診療所」「熱」「体調」「薬」「症状」「痛」「怪我」「風邪」「めまい」「吐き気」
 
-この判定は `context_search.detect_medical_intent(user_message: str) -> bool` として新設。既存の `detect_emergency` とは別関数（緊急ではない医療系相談を拾う）。
+「痛」は活用形（「痛い」「痛くて」「痛かった」「頭痛」）を包括的に拾うためのルート形として登録する。「痛快」等の少数の false-positive は許容する（Zero-context 時のみ発火するため実害が小さい）。この判定は `context_search.detect_medical_intent(user_message: str) -> bool` として新設。既存の `detect_emergency` とは別関数（緊急ではない医療系相談を拾う）。
 
 #### 5.3.6 応答組み立て順
 
