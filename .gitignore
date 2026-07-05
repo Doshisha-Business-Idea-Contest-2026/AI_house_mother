@@ -14,3 +14,11 @@ __pycache__/
 *$py.class
 *.so
 .Python
+
+# Runtime data (seed only is committed)
+data/logs/
+data/users.json
+data/profiles.json
+data/posts.json
+data/invitations.json
+data/parent_links.json

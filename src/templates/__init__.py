@@ -1,0 +1,1 @@
+"""LINE message templates."""
