@@ -270,7 +270,7 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ## 6. Day 4: 磨き込み
 
-### T4.1 Flex Message デザイン調整
+### T4.1a Flex Message デザイン調整
 
 **目的**: 見た目の質を上げる
 
@@ -278,6 +278,40 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 - ウェルカム、活動カード、月次レポートの余白・色を調整
 - 絵文字の統一
 - iOS / Android 両方で表示崩れがないか確認
+
+**推定**: 2 時間
+
+### T4.1b Sender switch 実装（送信者アイコン・名前の切替）
+
+**目的**: `docs/04_functional_spec.md §3.5` の仕様に基づき、応答のトーンに応じて送信者名とアイコンを切替、機械的応答と人間的応答の区別を UX で明示する。
+
+**依存アセット**:
+- `static/icons/friendly.png` / `system.png` / `notify.png`（Day 2 で placeholder コミット済み。デモ前に正式版に差し替え）
+
+**成果物**:
+- `src/services/line_reply.py`:
+  - `reply_text` / `reply_flex` / `push_text` / `push_flex` に `sender: SenderPreset | None = None` 引数を追加
+  - `SenderPreset = Literal["friendly", "system", "notify"]` を定義
+  - 内部で `linebot.v3.messaging.Sender(name=..., icon_url=...)` を組み立てて Message の `sender` フィールドに設定
+  - 未指定時は `friendly`（デフォルト）
+- `src/main.py` に `StaticFiles(directory="static")` を `/ai_house_mother/static` にマウント
+- `src/config.py` に `PUBLIC_BASE_URL` を追加（`.env` から読む、デフォルトは `https://linebot.kmchan.jp/ai_house_mother`）
+- `.env.example` に `PUBLIC_BASE_URL` を追記
+- 呼び出し側の分類（`docs/04_functional_spec.md §3.5` の表参照）:
+  - `handlers/student.py::handle_life_consultation` の Gemini 応答 push → `friendly`
+  - `handlers/student.py` の緊急定型 → `friendly`
+  - `handlers/student.py::handle_want_to_do` のカルーセル push → `friendly`
+  - `handlers/student.py::handle_activity_detail` の push → `friendly`
+  - `handlers/message.py::handle_text` のキャンセル・placeholder・エラー → `system`
+  - `handlers/postback.py::_handle_menu` の placeholder → `system`
+  - `handlers/student.py` プロフィール入力ステップ → `system`
+  - `handlers/follow.py::handle_follow` のウェルカム → `friendly`
+  - Day 3 の招待コード発行完了・保護者連携完了通知 → `notify`
+
+**完了基準**:
+- LINE 実機で「生活相談」と「キャンセル」の応答が異なる送信者名・アイコンで表示される
+- `curl https://linebot.kmchan.jp/ai_house_mother/static/icons/friendly.png` で 200 が返る（他 2 種も同様）
+- 既存の呼び出し箇所は無変更で動作する（`sender` 未指定は `friendly` にフォールバック）
 
 **推定**: 2 時間
 
@@ -378,7 +412,7 @@ T2.6 ─▶ T3.1 ─▶ T3.2 ┐
                      ├─▶ T3.4 ─▶ T3.5
         T2.5 ─▶ T3.3 ┘
 
-T3.5 ─▶ T4.1 ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
+T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
 ```
 
 ## 8. スコープ縮退
@@ -389,7 +423,8 @@ T3.5 ─▶ T4.1 ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4
 2. **T2.5 生活相談の高度化** — キーワードマッチをスキップして Gemini に全部渡す
 3. **T3.3 経験投稿** — デモでは事前投入データのみで動かす、投稿 UI モックのみ
 4. **T3.4 月次サマリー** — 静的テンプレート化（"春樹さんの今月：〜" を固定文言）
-5. **T4.1 Flex Message デザイン調整** — テキスト応答に置き換え
+5. **T4.1a Flex Message デザイン調整** — テキスト応答に置き換え
+6. **T4.1b Sender switch 実装** — 全応答を単一送信者に戻す（アイコン切替なし）
 
 ## 9. 完了状況トラッキング
 
@@ -409,3 +444,4 @@ Day 1
 | --- | --- | --- |
 | 2026-07-05 | 初版作成 | kmch4n |
 | 2026-07-06 | T2.5 に Zero-context 未実装の注記、T2.hallu と T4.9 を新設（ハルシネーション対策のため） | kmch4n |
+| 2026-07-06 | T4.1 を T4.1a（Flex デザイン調整）と T4.1b（Sender switch 実装）に分割、タスク依存グラフと縮退順序を同期 | kmch4n |
