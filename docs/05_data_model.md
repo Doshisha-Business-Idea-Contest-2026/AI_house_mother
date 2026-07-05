@@ -28,17 +28,49 @@ data/
     └── conversations/      # 任意: 会話ログ（デバッグ用、本番運用時は要検討）
 ```
 
-- `data/` はリポジトリにコミットするが、`data/logs/` は `.gitignore` で除外
-- `data/seed/*` はコミット対象（デモの再現性を確保）
-- `data/users.json` などランタイム更新されるファイルもコミット対象（デモ状態を保存）にするが、機密性が上がったら除外を検討
+- **コミット対象**: `data/seed/*`（デモの再現性を確保）と `data/.gitkeep`/`data/seed/.gitkeep` のみ。
+- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 5 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`）。
+- **理由**: デモ直前のリセット容易性を優先する。ランタイム JSON をコミット対象にすると、審査員体験時に生成された LINE user_id が Git 履歴に残る懸念もある。
+- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON が空スキーマで作成される（既存ファイルは上書きしない）。
 
 ## 3. 並行アクセス
 
-- 既存 `kcb_linebot/storage.py` と同様、`fcntl.flock(fd, fcntl.LOCK_EX)` で排他ロック
-- 読み込み時: `LOCK_SH`（共有ロック）
-- 書き込み時: `LOCK_EX`（排他ロック）
-- ロック取得タイムアウト: 5 秒
-- 書き込み時は **atomic write**（一時ファイルへ書き出して `os.replace()`）で破損を防ぐ
+- 書き込みは **exclusive lock (`LOCK_EX`)**、読み込みは **shared lock (`LOCK_SH`)**（`fcntl.flock`）。
+- 書き込みは **atomic write** で行う。手順:
+  1. 保存先と同じディレクトリに `tempfile.mkstemp()` で一時ファイルを作る。
+  2. 一時ファイルに `LOCK_EX` を掛けた状態で `json.dump()` + `flush()` + `os.fsync()`。
+  3. `os.replace(tmp_path, final_path)` で原子的に差し替える。
+  4. 失敗した場合は一時ファイルを削除する。
+- 実装は `src/services/storage.py` の `load_json()` / `save_json()` を参照。
+- MVP 期間は uvicorn を `--workers 1` で起動するため、単一プロセス内での競合は起きない。将来スケールする際も `fcntl` はプロセス間で機能するので、ワーカー数を増やしても壊れない。
+
+**参考コード** (`src/services/storage.py` より抜粋):
+
+```python
+def save_json(relative_path: str, data: Any) -> None:
+    path = DATA_DIR / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
+```
 
 ## 4. スキーマ定義
 
@@ -311,16 +343,18 @@ data/
 
 ## 6. データ更新パターン
 
+パス引数はすべて `data/` 直下からの相対パスで指定する（`src/services/storage.py` の `DATA_DIR` を基準に解決される）。
+
 ### 6.1 プロフィール登録
 
 ```python
-from services.storage import load_json, save_json
+from src.services.storage import load_json, save_json
 
 def save_profile(line_user_id: str, profile: dict) -> None:
     """Save student profile to profiles.json with fcntl lock."""
-    data = load_json("data/profiles.json")
+    data = load_json("profiles.json", default={"profiles": {}})
     data["profiles"][line_user_id] = profile
-    save_json("data/profiles.json", data)
+    save_json("profiles.json", data)
 ```
 
 ### 6.2 経験投稿
@@ -328,11 +362,11 @@ def save_profile(line_user_id: str, profile: dict) -> None:
 ```python
 def add_post(post: dict) -> str:
     """Add a new post and return the assigned post_id."""
-    data = load_json("data/posts.json")
+    data = load_json("posts.json", default={"posts": []})
     next_id = _next_post_id(data["posts"])
     post["post_id"] = next_id
     data["posts"].append(post)
-    save_json("data/posts.json", data)
+    save_json("posts.json", data)
     return next_id
 ```
 
@@ -342,7 +376,7 @@ def add_post(post: dict) -> str:
 def create_invitation(student_user_id: str) -> str:
     """Create a 6-char invitation code with 24h expiry."""
     code = _generate_code()  # 6 chars, exclude I/O/0/1
-    data = load_json("data/invitations.json")
+    data = load_json("invitations.json", default={"invitations": []})
     data["invitations"].append({
         "code": code,
         "student_user_id": student_user_id,
@@ -351,7 +385,7 @@ def create_invitation(student_user_id: str) -> str:
         "used_at": None,
         "used_by_parent_id": None,
     })
-    save_json("data/invitations.json", data)
+    save_json("invitations.json", data)
     return code
 ```
 
@@ -360,7 +394,7 @@ def create_invitation(student_user_id: str) -> str:
 ```python
 def use_invitation(code: str, parent_user_id: str) -> str | None:
     """Consume an invitation code. Return student_user_id if success, None otherwise."""
-    data = load_json("data/invitations.json")
+    data = load_json("invitations.json", default={"invitations": []})
     for inv in data["invitations"]:
         if inv["code"] != code:
             continue
@@ -370,7 +404,7 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
             return None
         inv["used_at"] = _now_iso()
         inv["used_by_parent_id"] = parent_user_id
-        save_json("data/invitations.json", data)
+        save_json("invitations.json", data)
         return inv["student_user_id"]
     return None
 ```
@@ -402,3 +436,4 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
 | 日付 | 変更内容 | 記入者 |
 | --- | --- | --- |
 | 2026-07-05 | 初版作成 | kmch4n |
+| 2026-07-05 | ランタイム JSON を `.gitignore` 除外に統一、atomic write の実装例を追加、コード例のパス指定と import を実装と一致させた | kmch4n |
