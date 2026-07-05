@@ -67,6 +67,8 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - 緊急事態（119/110 事案）は即座に該当窓口を案内する。
 - 実在する店舗・病院・施設について、古い情報の可能性があることを一言添える。
 - ユーザー本人が登録した情報以外の個人情報を漏らさない。
+- 情報源（`data/seed/*.json`）に存在しない具体情報（電話番号、営業時間、特定店舗名、特定日程）を断定しない。
+- 情報源に該当が無い場合は、必ず公式窓口や #7119 等の一般的な連絡先へ誘導する。
 
 【トーン】
 - 親しみやすい寮母のような語り口（ですます調、絵文字は控えめに 1〜2 個）。
@@ -143,10 +145,14 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 2〜3 件、必ず出力してください。
 ```
 
+`reference_type` の値の詳細（`static_fallback` を含む全 6 種）は `docs/05_data_model.md` §7 を参照。
+
 **呼び出し後の処理**:
 - JSON パース失敗時はテキスト応答にフォールバック
 - 2 件未満の場合は追加で 1 件を生成型 (`"reference_type": "generated"`) で補完
 - 各提案を Flex Message カルーセルに変換
+- `reference_type: "generated"` の提案は Flex Message の Header に「AI 提案（要確認）」等の視覚ラベルを付与し、seed 由来の提案と区別する（詳細は `docs/04_functional_spec.md §4.3`）
+- Gemini API 障害等で 0 件が返った場合、seed からランダム 2 件を `reference_type: "static_fallback"` で返す（詳細は `§5.3.7`）
 
 **パラメータ調整**:
 - `temperature`: 0.8（多様性を出す）
@@ -167,6 +173,12 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 【学生プロフィール】
 {profile_summary}
 
+【関連情報の件数】
+- stores: {stores_hits} 件
+- areas: {areas_hits} 件
+- senior_posts: {senior_posts_hits} 件
+- total_hits: {total_hits} 件
+
 【関連する地域情報・店舗・先輩投稿】
 {context_summary}
 
@@ -179,14 +191,16 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - 緊急を疑う場合は #7119（京都府救急安心センター）や 119 を案内する。
 - 実在の店舗・病院名は「情報が古い可能性があります」と注記する。
 - 300 文字以内でまとめる。
+- **total_hits が 0 の場合**: 地名・電話番号・営業時間・特定の店舗名を絶対に断定しない。一般的な案内のみ書き、必ず「詳細は公式窓口でご確認ください」と誘導する（詳細は §5.3）。
 
 回答:
 ```
 
 **Context 選定ロジック**:
 - ユーザー発言のキーワードを抽出（既存 LINE Bot でも使う簡易 tokenizer）
-- `areas.json` / `stores.json` / `senior_posts.json` から関連度上位 5 件を渡す
+- `areas.json` / `stores.json` / `senior_posts.json` から関連度上位 5 件を渡す（`services/context_search.find_relevant_context` の I/F は §5.3.3）
 - MVP では単純な部分文字列マッチで良い（RAG なし）
+- `total_hits == 0` の場合は §5.3 の Zero-context 分岐が優先される
 
 **パラメータ調整**:
 - `temperature`: 0.5（決定性重視）
@@ -264,7 +278,104 @@ System Prompt で明示している以下の禁止事項は、応答内容を po
 - 特定の弁護士・法律事務所を推奨する表現
 - 個人が特定できる情報の暴露
 
-MVP 期間では、簡易的な正規表現チェックで十分。
+MVP 期間では、簡易的な正規表現チェックで十分（実装は Day 4 の T4.9 で対応予定）。
+
+### 5.3 ハルシネーション対策（Zero-context 分岐）
+
+#### 5.3.1 目的
+
+seed（`data/seed/*.json`）に情報がない話題（例: ゴミ出しの曜日、特定病院の営業時間、店舗の電話番号）を相談された際、Gemini が地名・電話番号・営業時間などをそれっぽく捏造することを防ぐ。上位の非機能要件は `docs/01_requirements.md §6.4`（NFR-Truth-1/2/3）を参照。
+
+#### 5.3.2 判定条件
+
+`context_search.find_relevant_context(user_message)` の戻り値の総ヒット数（`total_hits`）が **0 件** の場合を Zero-context とする。MVP では単純な `total_hits == 0` 判定のみ。擬似的な部分文字列ヒット（1 件だけ無関係なマッチが返る等）は本スコープ外とし、Day 4 の Post-hoc 正規表現チェック（T4.9）で拾う。
+
+#### 5.3.3 I/F 定義
+
+`src/services/context_search.py` に以下を実装する:
+
+```python
+from typing import TypedDict
+
+class ContextSearchResult(TypedDict):
+    stores: list[dict]
+    areas: list[dict]
+    senior_posts: list[dict]
+    total_hits: int              # sum(len(stores) + len(areas) + len(senior_posts))
+    matched_categories: set[str] # 収集された seed のカテゴリ (例 {"medical", "government"})
+
+
+def find_relevant_context(user_message: str, top_k: int = 5) -> ContextSearchResult:
+    """Return matched seed items grouped by kind plus aggregate stats."""
+
+
+def should_add_disclaimer(result: ContextSearchResult) -> bool:
+    """MVP: total_hits == 0 で真。将来的な閾値変更のためのラッパー。"""
+    return result["total_hits"] == 0
+
+
+def detect_medical_intent(user_message: str) -> bool:
+    """Return True when the message contains medical-context keywords.
+
+    Distinct from :func:`detect_emergency` — this catches non-emergency
+    medical topics like 'クリニックを探したい'.
+    """
+```
+
+**互換性のメモ**: Day 2 で既に `find_relevant_context` は生の `dict[str, list[dict]]` を返す実装がプッシュ済み。T2.hallu の実装フェーズで `ContextSearchResult` に置き換える。呼び出し側の `handle_life_consultation` と `answer_life_question` を同時に更新する必要があるため、T2.hallu のコミットに全部含める。
+
+#### 5.3.4 応答テンプレート
+
+`src/services/prompts.py` にモジュール定数として保持する:
+
+```python
+ZERO_CONTEXT_DISCLAIMER = (
+    "ごめんなさい、この話題については先輩の投稿や地域の情報がまだ届いていません🙏\n"
+    "以下は一般的なご案内なので、正確な情報は公式窓口でご確認くださいね。\n"
+)
+
+MEDICAL_FOLLOWUP = (
+    "\n\n体調のご相談は #7119（京都府救急安心センター）でも相談できますよ。\n"
+    "京都市の医療機関検索サイトも参考になります。"
+)
+```
+
+文言変更時は本セクションと定数を同時に更新する。トーンは System Prompt §3 の「親しみやすい寮母のような語り口（ですます調、絵文字は控えめに 1〜2 個）」に揃える。
+
+#### 5.3.5 医療キーワード追加誘導
+
+Zero-context の生活相談で、以下いずれかのキーワードを検出した場合、`MEDICAL_FOLLOWUP` を disclaimer + 一般案内の直後に追加する:
+
+- 「病院」「クリニック」「診療所」「熱」「体調」「薬」「症状」「痛い」「怪我」
+
+この判定は `context_search.detect_medical_intent(user_message: str) -> bool` として新設。既存の `detect_emergency` とは別関数（緊急ではない医療系相談を拾う）。
+
+#### 5.3.6 応答組み立て順
+
+1. `context_search.find_relevant_context(user_message)` を呼ぶ
+2. `should_add_disclaimer(result)` が真なら:
+   - Gemini へは §4.2 のプロンプトで `total_hits == 0` を明示、「地名・電話番号・営業時間・特定の店舗名を絶対に断定しない」制約を強制
+   - Gemini 応答テキストの先頭に `ZERO_CONTEXT_DISCLAIMER` を連結
+   - `detect_medical_intent` が真なら末尾に `MEDICAL_FOLLOWUP` を追加
+3. `should_add_disclaimer(result)` が偽なら通常応答（先輩投稿を引用しやすい設計）
+
+#### 5.3.7 `static_fallback` との違い
+
+`reference_type: "static_fallback"` は **Gemini API 障害時に seed からランダム候補を返す**モード（`§4.1 呼び出し後の処理`）で、原因は「AI 側の停止」。Zero-context は **情報源に該当が無い** 状態で、原因は「seed 未カバー」。両者はユーザーに提示する disclaimer が異なるため、実装上も別処理として扱う:
+
+| ケース | 原因 | disclaimer | 誘導先 |
+| --- | --- | --- | --- |
+| `static_fallback` | Gemini 障害 | 「AI が応答できなかったので、代わりに seed からピックしました」（実装は Day 4 で調整）| なし |
+| Zero-context | seed 未カバー | `ZERO_CONTEXT_DISCLAIMER` | 公式窓口 + 必要なら `MEDICAL_FOLLOWUP` |
+
+#### 5.3.8 ログ
+
+`answer_life_question` の返却時に、以下フラグを journald ログに記録する（詳細は `docs/04_functional_spec.md §3.3`）:
+
+- `zero_context: bool` — `should_add_disclaimer(result)` の値
+- `disclaimer_shown: bool` — 応答に `ZERO_CONTEXT_DISCLAIMER` を付与したか
+- `medical_followup_shown: bool` — `MEDICAL_FOLLOWUP` を付与したか
+- `reference_types: list[str]` — やりたいこと相談の場合の各カード `reference_type`
 
 ## 6. パフォーマンス設計
 
@@ -349,3 +460,4 @@ MVP 期間は最低限のログでよい。
 | 日付 | 変更内容 | 記入者 |
 | --- | --- | --- |
 | 2026-07-05 | 初版作成 | kmch4n |
+| 2026-07-05 | §5.3 Zero-context 分岐仕様を新設、§3 禁止事項に情報源制約を追加、§4.1/§4.2 に reference_type と件数ラベルを追記 | kmch4n |

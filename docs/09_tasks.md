@@ -178,6 +178,39 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 **推定**: 2 時間
 
+**注記（2026-07-06 追記）**: Zero-context 分岐（NFR-Truth-2/3、`docs/06_ai_spec.md §5.3`）は T2.5 の初期実装には含まれず、T2.hallu で追加する。
+
+### T2.hallu ハルシネーション対策実装（Zero-context 分岐）
+
+**目的**: `docs/06_ai_spec.md §5.3` の Zero-context 分岐と医療キーワード誘導を実装、NFR-Truth-1/2/3 を満たす。
+
+**成果物**:
+- `src/services/context_search.py`:
+  - `ContextSearchResult` TypedDict 定義
+  - `find_relevant_context()` の戻り値を `ContextSearchResult` に変更（`total_hits`, `matched_categories` を含める）
+  - `should_add_disclaimer(result)` 追加
+  - `detect_medical_intent(user_message)` 新設
+- `src/services/prompts.py`:
+  - `ZERO_CONTEXT_DISCLAIMER`, `MEDICAL_FOLLOWUP` 定数追加
+  - `build_life_consultation_prompt()` に `total_hits` / `has_context` を引数追加、prompt に件数と制約を埋め込む
+- `src/handlers/student.py::handle_life_consultation`:
+  - `should_add_disclaimer(result)` で分岐、disclaimer / medical followup を組み立て
+- `src/services/gemini.py::answer_life_question`:
+  - `has_context` を受けて prompt 構築、Zero-context 時は応答冒頭に disclaimer を連結
+- `src/templates/flex/activity_carousel.py`:
+  - `reference_type: "generated"` のバブルに「AI 提案（要確認）」サブラベル追加（NFR-Truth-1 の視覚化）
+
+**完了基準**:
+- 「ゴミの分別が本当にわからなくて困っている」→ disclaimer + 一般案内 + 京都市エコまちステーション誘導
+- 「熱っぽくて近くの病院を探しています」→ 通常応答（stores/areas から病院がヒットする）
+- 「ミラノで美味しいレストランは？」→ disclaimer + 一般案内（Zero-context）
+- 「頭が痛くて眠れない」→ disclaimer + `MEDICAL_FOLLOWUP`（#7119 誘導）
+- journald に `zero_context: true, disclaimer_shown: true, medical_followup_shown: true/false, reference_types: [...]` が構造化ログとして残る
+
+**推定**: 30〜40 分
+
+**Day 割当**: Day 2 の延長として、T2.5 直後に実施。
+
 ### T2.6 Day 2 締めのコミット・プッシュ
 
 ## 5. Day 3: 家族ループ
@@ -305,6 +338,29 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T4.8 Day 4 締めのコミット・プッシュ
 
+### T4.9 Post-hoc 正規表現ハルシネーション検出
+
+**目的**: `docs/06_ai_spec.md §5.2` の post-hoc チェックを実装、Gemini 応答に含まれる捏造固有情報を検出・除去する。
+
+**成果物**:
+- `src/services/hallucination_filter.py` 新設
+- 正規表現で以下を検出:
+  - 電話番号パターン（`\d{2,4}-\d{2,4}-\d{4}`）
+  - 「毎週◯曜日」「毎月◯日」等の断定的日程表現
+  - 「〜時から〜時まで」等の断定的営業時間
+- `answer_life_question` の応答に対してフィルタを適用:
+  - seed に存在しない値なら該当箇所を削除、または「（要確認）」注記に置換
+  - 電話番号は `#7119` などの一般窓口に自動置換
+
+**完了基準**:
+- テストケース「電話は 075-123-4567 です」→ 「電話は公式サイトでご確認ください」に置換
+- テストケース「毎週水曜が燃えるゴミです」→ 「詳しくは京都市エコまちステーションにご確認ください」に置換
+- seed 由来の #7119 などは残る
+
+**優先度**: P2（Day 4 の余裕枠に配置、必須ではない）
+
+**推定**: 45 分
+
 ## 7. タスク依存グラフ
 
 ```
@@ -352,3 +408,4 @@ Day 1
 | 日付 | 変更内容 | 記入者 |
 | --- | --- | --- |
 | 2026-07-05 | 初版作成 | kmch4n |
+| 2026-07-06 | T2.5 に Zero-context 未実装の注記、T2.hallu と T4.9 を新設（ハルシネーション対策のため） | kmch4n |
