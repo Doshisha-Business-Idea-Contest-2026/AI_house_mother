@@ -1,0 +1,22 @@
+[Unit]
+Description=AI House Mother LINE Bot
+After=network.target
+
+[Service]
+Type=simple
+User=kmch4n
+WorkingDirectory=/home/kmch4n/dev/AI_house_mother
+Environment="PATH=/home/kmch4n/dev/AI_house_mother/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/home/kmch4n/dev/AI_house_mother/.venv"
+Environment="TZ=Asia/Tokyo"
+EnvironmentFile=/home/kmch4n/dev/AI_house_mother/.env
+# --workers 1 is required because session state is stored in-memory.
+# Do not raise the worker count without introducing a shared session store.
+ExecStart=/home/kmch4n/dev/AI_house_mother/.venv/bin/python -m uvicorn src.main:app --host 0.0.0.0 --port 8084 --workers 1
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

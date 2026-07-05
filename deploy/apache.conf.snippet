@@ -1,0 +1,20 @@
+# Apache reverse proxy snippet for AI House Mother.
+#
+# Add these lines inside BOTH of the following Apache VirtualHost files
+# on the deploy host, then reload Apache:
+#
+#   /etc/apache2/sites-enabled/linebot.kmchan.jp.conf         (port 80)
+#   /etc/apache2/sites-enabled/linebot.kmchan.jp-le-ssl.conf  (port 443)
+#
+#   sudo apache2ctl configtest
+#   sudo systemctl reload apache2
+#
+# After deploy, the LINE webhook URL becomes:
+#   https://linebot.kmchan.jp/ai_house_mother/callback
+
+ProxyPass /ai_house_mother http://localhost:8084/ai_house_mother
+ProxyPassReverse /ai_house_mother http://localhost:8084/ai_house_mother
+
+<Location /ai_house_mother>
+    Require all granted
+</Location>
