@@ -1,0 +1,40 @@
+{
+    "demo_profiles": [
+        {
+            "name_pseudonym": "山田 春樹",
+            "line_user_id_placeholder": "STUDENT_DEMO_1",
+            "university": "同志社大学",
+            "faculty": "経済学部",
+            "grade": "1",
+            "interests": ["地域活動", "ものづくり", "食・カフェ巡り"],
+            "recent_effort": "英語のTOEICスコアアップのために毎日勉強しています",
+            "want_to_do": "京都の伝統文化に触れる体験がしたい、地域の人と関わってみたい",
+            "hometown": "岡山県",
+            "notes": "P-S1（03_user_stories.md）に対応する主要デモ用プロフィール"
+        },
+        {
+            "name_pseudonym": "佐々木 美咲",
+            "line_user_id_placeholder": "STUDENT_DEMO_2",
+            "university": "同志社大学",
+            "faculty": "商学部",
+            "grade": "2",
+            "interests": ["ボランティア", "起業・ビジネス", "国際交流"],
+            "recent_effort": "簿記 2 級の勉強と英会話サークル運営",
+            "want_to_do": "地域と関わる活動をして、自分の興味の方向性を確かめたい",
+            "hometown": "大阪府",
+            "notes": "P-S2（03_user_stories.md）に対応するプロフィール"
+        },
+        {
+            "name_pseudonym": "田中 康介",
+            "line_user_id_placeholder": "STUDENT_DEMO_3",
+            "university": "同志社大学",
+            "faculty": "政策学部",
+            "grade": "3",
+            "interests": ["学問・研究", "地域活動", "ものづくり"],
+            "recent_effort": "卒業論文のテーマ探しと地域フィールドワーク参加",
+            "want_to_do": "地方創生に貢献するプロジェクトに関わってみたい",
+            "hometown": "愛知県",
+            "notes": "地域社会・地方創生系の学生としての第 3 デモ用プロフィール"
+        }
+    ]
+}
