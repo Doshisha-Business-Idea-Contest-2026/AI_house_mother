@@ -1,0 +1,404 @@
+# 05. データモデル
+
+## 1. このドキュメントの目的
+
+AI 寮母 MVP のデータ構造を定義する。全てのデータは **JSON ファイル** に永続化する（DB は使わない）。
+
+- ファイル配置
+- 各エンティティの JSON スキーマ
+- 並行アクセスの取り扱い（`fcntl` ロック）
+- 架空データのサンプル
+- キー戦略
+
+## 2. ファイル配置
+
+```
+data/
+├── users.json              # LINE user 単位の基本情報（役割、作成日時）
+├── profiles.json           # 学生プロフィール
+├── posts.json              # 学生の経験投稿
+├── invitations.json        # 招待コード
+├── parent_links.json       # 保護者-学生の紐付け
+├── seed/                   # 手動投入する架空データ
+│   ├── areas.json          # 地域情報
+│   ├── stores.json         # 学生向け店舗
+│   ├── events.json         # 地域イベント・ボランティア
+│   └── senior_posts.json   # 先輩投稿（生活知・地域体験）
+└── logs/
+    └── conversations/      # 任意: 会話ログ（デバッグ用、本番運用時は要検討）
+```
+
+- `data/` はリポジトリにコミットするが、`data/logs/` は `.gitignore` で除外
+- `data/seed/*` はコミット対象（デモの再現性を確保）
+- `data/users.json` などランタイム更新されるファイルもコミット対象（デモ状態を保存）にするが、機密性が上がったら除外を検討
+
+## 3. 並行アクセス
+
+- 既存 `kcb_linebot/storage.py` と同様、`fcntl.flock(fd, fcntl.LOCK_EX)` で排他ロック
+- 読み込み時: `LOCK_SH`（共有ロック）
+- 書き込み時: `LOCK_EX`（排他ロック）
+- ロック取得タイムアウト: 5 秒
+- 書き込み時は **atomic write**（一時ファイルへ書き出して `os.replace()`）で破損を防ぐ
+
+## 4. スキーマ定義
+
+### 4.1 users.json
+
+役割等の LINE user 単位の最小限情報。
+
+```json
+{
+    "users": {
+        "U1234abcd...": {
+            "line_user_id": "U1234abcd...",
+            "role": "student",
+            "created_at": "2026-07-05T14:00:00+09:00",
+            "updated_at": "2026-07-05T14:00:00+09:00"
+        }
+    }
+}
+```
+
+**フィールド**:
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `line_user_id` | string | LINE の userId |
+| `role` | `"student"` \| `"parent"` | 役割 |
+| `created_at` | string (ISO 8601 + tz) | 初回作成日時 |
+| `updated_at` | string (ISO 8601 + tz) | 最終更新日時 |
+
+### 4.2 profiles.json
+
+学生プロフィール。
+
+```json
+{
+    "profiles": {
+        "U1234abcd...": {
+            "line_user_id": "U1234abcd...",
+            "university": "同志社大学",
+            "faculty": "経済学部",
+            "grade": "1",
+            "interests": ["地域活動", "ものづくり", "食・カフェ巡り"],
+            "recent_effort": "英語のスコアを上げるためにTOEICを毎日勉強しています",
+            "want_to_do": "京都の伝統文化に触れる体験がしたい、地域の人と関わってみたい",
+            "created_at": "2026-07-05T14:10:00+09:00",
+            "updated_at": "2026-07-05T14:10:00+09:00"
+        }
+    }
+}
+```
+
+**フィールド**:
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `line_user_id` | string | 学生の LINE userId |
+| `university` | string | 大学名 |
+| `faculty` | string | 学部名 |
+| `grade` | string | 学年（"1"〜"4", "M1", "M2"） |
+| `interests` | string[] | 興味関心タグ（複数） |
+| `recent_effort` | string | 最近頑張っていること（自由記述、最大 200 文字） |
+| `want_to_do` | string | やってみたいこと（自由記述、最大 200 文字） |
+| `created_at` | string | 作成日時 |
+| `updated_at` | string | 最終更新日時 |
+
+### 4.3 posts.json
+
+学生の経験投稿。
+
+```json
+{
+    "posts": [
+        {
+            "post_id": "P00001",
+            "line_user_id": "U1234abcd...",
+            "category": "volunteer",
+            "title": "下鴨神社の清掃活動に参加",
+            "body": "先週末、下鴨神社の月例清掃に参加。地域の方と話せて楽しかった。次は10月に開催予定。",
+            "area": "下鴨神社",
+            "share_with_parent": true,
+            "created_at": "2026-07-05T18:30:00+09:00"
+        }
+    ]
+}
+```
+
+**フィールド**:
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `post_id` | string | `P` + 5 桁連番 |
+| `line_user_id` | string | 投稿者（学生） |
+| `category` | string | `event` \| `volunteer` \| `store` \| `medical` \| `tips` \| `other` |
+| `title` | string | タイトル（最大 40 文字） |
+| `body` | string | 本文（最大 500 文字） |
+| `area` | string \| null | 地名・店名等 |
+| `share_with_parent` | boolean | 保護者への共有可否 |
+| `created_at` | string | 投稿日時 |
+
+### 4.4 invitations.json
+
+招待コード。
+
+```json
+{
+    "invitations": [
+        {
+            "code": "A3F7K9",
+            "student_user_id": "U1234abcd...",
+            "created_at": "2026-07-05T15:00:00+09:00",
+            "expires_at": "2026-07-06T15:00:00+09:00",
+            "used_at": null,
+            "used_by_parent_id": null
+        }
+    ]
+}
+```
+
+**フィールド**:
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `code` | string | 6 桁英数字（`I`, `O`, `0`, `1` 除外） |
+| `student_user_id` | string | 発行した学生 |
+| `created_at` | string | 発行日時 |
+| `expires_at` | string | 有効期限（発行から 24 時間） |
+| `used_at` | string \| null | 使用日時（未使用なら null） |
+| `used_by_parent_id` | string \| null | 使用した保護者 userId |
+
+### 4.5 parent_links.json
+
+保護者-学生の紐付け。
+
+```json
+{
+    "links": [
+        {
+            "parent_user_id": "U9876wxyz...",
+            "student_user_id": "U1234abcd...",
+            "linked_at": "2026-07-05T20:00:00+09:00",
+            "active": true
+        }
+    ]
+}
+```
+
+**フィールド**:
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `parent_user_id` | string | 保護者の LINE userId |
+| `student_user_id` | string | 連携した学生の LINE userId |
+| `linked_at` | string | 連携完了日時 |
+| `active` | boolean | 有効フラグ（解除時 false） |
+
+**関係性**: 1 学生 : N 保護者、1 保護者 : N 学生（家族構成の柔軟性を確保）
+
+### 4.6 areas.json（seed）
+
+地域情報。京都・同志社周辺 30 件を手動投入。
+
+```json
+{
+    "areas": [
+        {
+            "area_id": "AR001",
+            "name": "今出川エリア",
+            "category": "district",
+            "description": "同志社大学今出川キャンパス周辺。学生向け飲食店、書店、コンビニが多い。",
+            "tags": ["同志社", "学生街", "今出川"]
+        },
+        {
+            "area_id": "AR002",
+            "name": "京都市左京区役所",
+            "category": "government",
+            "description": "住民票や国民健康保険の手続き窓口。平日 8:45-17:15、混雑時間は 10-12 時。",
+            "tags": ["行政", "手続き", "左京区"]
+        }
+    ]
+}
+```
+
+**カテゴリ候補**: `district`, `government`, `medical`, `cultural`, `transport`, `park`, `library`
+
+### 4.7 stores.json（seed）
+
+学生向け店舗。15 件。
+
+```json
+{
+    "stores": [
+        {
+            "store_id": "ST001",
+            "name": "喫茶 進々堂 京大北門前",
+            "category": "cafe",
+            "area": "百万遍",
+            "description": "老舗の喫茶店。長い机で他の学生と相席になることも。読書・勉強に最適。",
+            "student_friendly": true,
+            "price_range": "コーヒー 500 円台",
+            "tags": ["喫茶", "勉強", "老舗"]
+        }
+    ]
+}
+```
+
+**カテゴリ候補**: `cafe`, `restaurant`, `bookstore`, `bath`, `medical`, `pharmacy`, `convenience`
+
+### 4.8 events.json（seed）
+
+地域イベント・ボランティア。10 件。
+
+```json
+{
+    "events": [
+        {
+            "event_id": "EV001",
+            "name": "下鴨神社 月例清掃ボランティア",
+            "category": "volunteer",
+            "area": "下鴨神社",
+            "schedule": "毎月第2土曜 8:30-10:00",
+            "description": "地域の方と一緒に境内を清掃。参加無料、初参加歓迎。",
+            "target_audience": ["学生", "地域住民"],
+            "tags": ["ボランティア", "地域", "神社"]
+        }
+    ]
+}
+```
+
+**カテゴリ候補**: `event`, `volunteer`, `workshop`, `festival`, `study_group`
+
+### 4.9 senior_posts.json（seed）
+
+先輩入居者の投稿（架空、20 件）。
+
+```json
+{
+    "senior_posts": [
+        {
+            "post_id": "SP001",
+            "author_pseudonym": "先輩A（経済学部3年）",
+            "category": "medical",
+            "title": "夜間の発熱で焦った話",
+            "body": "深夜に 38 度出て焦ったけど、京都市の #7119 に電話したら病院を教えてくれた。#7119 は覚えておくと安心。",
+            "area": "京都市",
+            "created_at": "2026-04-10T00:00:00+09:00"
+        }
+    ]
+}
+```
+
+**カテゴリ**: `posts.json` と同じ。
+
+## 5. 架空学生プロフィール
+
+デモ用に 3〜5 名分の架空学生プロフィールを `data/seed/demo_profiles.json` として用意（デモ以外では使わない）。
+
+```json
+{
+    "demo_profiles": [
+        {
+            "name_pseudonym": "山田 春樹",
+            "line_user_id_placeholder": "STUDENT_DEMO_1",
+            "university": "同志社大学",
+            "faculty": "経済学部",
+            "grade": "1",
+            "interests": ["地域活動", "ものづくり", "食・カフェ巡り"],
+            "recent_effort": "英語のTOEICスコアアップ",
+            "want_to_do": "京都の伝統文化に触れる体験がしたい"
+        }
+    ]
+}
+```
+
+**注意**: `line_user_id_placeholder` は初期セットアップ時に実際の LINE userId に置き換える。
+
+## 6. データ更新パターン
+
+### 6.1 プロフィール登録
+
+```python
+from services.storage import load_json, save_json
+
+def save_profile(line_user_id: str, profile: dict) -> None:
+    """Save student profile to profiles.json with fcntl lock."""
+    data = load_json("data/profiles.json")
+    data["profiles"][line_user_id] = profile
+    save_json("data/profiles.json", data)
+```
+
+### 6.2 経験投稿
+
+```python
+def add_post(post: dict) -> str:
+    """Add a new post and return the assigned post_id."""
+    data = load_json("data/posts.json")
+    next_id = _next_post_id(data["posts"])
+    post["post_id"] = next_id
+    data["posts"].append(post)
+    save_json("data/posts.json", data)
+    return next_id
+```
+
+### 6.3 招待コード発行
+
+```python
+def create_invitation(student_user_id: str) -> str:
+    """Create a 6-char invitation code with 24h expiry."""
+    code = _generate_code()  # 6 chars, exclude I/O/0/1
+    data = load_json("data/invitations.json")
+    data["invitations"].append({
+        "code": code,
+        "student_user_id": student_user_id,
+        "created_at": _now_iso(),
+        "expires_at": _hours_later_iso(24),
+        "used_at": None,
+        "used_by_parent_id": None,
+    })
+    save_json("data/invitations.json", data)
+    return code
+```
+
+### 6.4 招待コード使用
+
+```python
+def use_invitation(code: str, parent_user_id: str) -> str | None:
+    """Consume an invitation code. Return student_user_id if success, None otherwise."""
+    data = load_json("data/invitations.json")
+    for inv in data["invitations"]:
+        if inv["code"] != code:
+            continue
+        if inv["used_at"] is not None:
+            return None
+        if _is_expired(inv["expires_at"]):
+            return None
+        inv["used_at"] = _now_iso()
+        inv["used_by_parent_id"] = parent_user_id
+        save_json("data/invitations.json", data)
+        return inv["student_user_id"]
+    return None
+```
+
+## 7. 月次サマリー生成
+
+保護者向け「今月のレポート」を生成する際は、以下を行う。
+
+1. `parent_links.json` から連携先学生を特定
+2. `posts.json` から `share_with_parent=true` かつ当月の投稿を抽出
+3. 最大 5 件を Flex Message カルーセル or リストで表示
+4. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / ✨ other）を付ける
+
+## 8. ロギング用会話ログ（任意）
+
+`data/logs/conversations/YYYY-MM-DD.jsonl` に、以下形式で JSONL 追記（1 行 1 メッセージ）。
+
+```json
+{"ts":"2026-07-05T14:00:00+09:00","user_hash":"a1b2c3d4","role":"student","direction":"in","text":"..."}
+{"ts":"2026-07-05T14:00:02+09:00","user_hash":"a1b2c3d4","role":"student","direction":"out","text":"..."}
+```
+
+- `user_hash`: SHA-256 の先頭 8 文字
+- `.gitignore` で除外
+- MVP 期間中はデバッグ用として活用、本番運用時は保持ポリシーを別途決める
+
+## 9. 変更履歴
+
+| 日付 | 変更内容 | 記入者 |
+| --- | --- | --- |
+| 2026-07-05 | 初版作成 | kmch4n |

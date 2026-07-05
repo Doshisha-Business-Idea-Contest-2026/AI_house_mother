@@ -1,0 +1,354 @@
+# 09. タスク分解
+
+## 1. このドキュメントの目的
+
+MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解する。
+
+- 各タスクの目的と成果物
+- 依存関係
+- 完了判定
+- スコープ縮退時の落としどころ
+
+## 2. マイルストーン
+
+| Day | 目標 | 完了状態 |
+| --- | --- | --- |
+| Day 1 (2026-07-05) | 土台構築 | Webhook 受信 → エコー応答が返る |
+| Day 2 (2026-07-06) | コア機能実装 | 学生役でやりたいこと相談・生活相談が動く |
+| Day 3 (2026-07-07) | 家族ループ | 招待コード → 保護者連携 → 月次レポート |
+| Day 4 (2026-07-08) | 磨き込み | Flex Message 整形、デモ通し、想定質問対応 |
+
+（日付は今日 2026-07-05 を Day 1 とした場合の想定。実際の決勝日に合わせて調整）
+
+## 3. Day 1: 土台構築
+
+### T1.1 LINE 公式アカウント取得と Messaging API チャネル作成
+
+**目的**: Webhook を受け取るための LINE 側設定を完了する
+
+**手順**:
+- LINE Developers Console で新規プロバイダー作成
+- Messaging API チャネル作成
+- Channel Access Token と Channel Secret を取得
+
+**完了基準**: `.env.example` に対応する変数名が確定、`.env` に実値を投入
+
+**担当**: 緑川
+**推定**: 30 分
+
+### T1.2 Gemini API キー取得
+
+**目的**: Gemini 呼び出し用のキーを取得する
+
+**手順**:
+- Google AI Studio でプロジェクト作成
+- API キー発行
+- Flash-Lite が利用可能なリージョン確認
+
+**完了基準**: `.env` に `GEMINI_API_KEY` 投入、`curl` で Gemini エンドポイント疎通確認
+
+**推定**: 15 分
+
+### T1.3 プロジェクト初期化
+
+**目的**: FastAPI プロジェクトの骨格を作る
+
+**手順**:
+- `python3 -m venv .venv`
+- `requirements.txt` 作成（`07_architecture.md` 7章参照）
+- `.env.example` 作成
+- `.gitignore` に `.venv`, `.env`, `data/logs/` 追加確認
+- `src/` 配下の空ファイル群作成
+
+**完了基準**: `pip install -r requirements.txt` が成功、`uvicorn src.main:app` が起動して `/health` に応答する
+
+**推定**: 30 分
+
+### T1.4 FastAPI アプリと Webhook 受信
+
+**目的**: LINE 署名検証と Webhook 受信の最小実装
+
+**成果物**: `src/main.py`, `src/router.py`, `src/config.py`
+
+**完了基準**: LINE 側から Webhook を送ってエコー応答が返る
+
+**推定**: 1 時間
+
+### T1.5 Storage 層と Session 層の実装
+
+**目的**: JSON ファイル I/O とインメモリセッション
+
+**成果物**: `src/services/storage.py`, `src/services/session.py`
+
+**完了基準**: `data/users.json` への読み書きが動作、単体テストは書かなくてもよい（手動確認）
+
+**推定**: 1 時間
+
+### T1.6 友だち追加時の役割選択実装
+
+**目的**: FR-S1 / FR-P1 の実装
+
+**成果物**: `src/handlers/follow.py`, `src/templates/flex/welcome.py`
+
+**完了基準**: 友だち追加 → ウェルカム表示 → 「学生/保護者」を選ぶと `data/users.json` にレコードが保存される
+
+**推定**: 1.5 時間
+
+### T1.7 systemd 登録と Apache 設定
+
+**目的**: デプロイパイプラインを完成させる
+
+**手順**:
+- `deploy/ai_house_mother.service` 作成
+- `/etc/systemd/system/` にコピー
+- Apache 設定に proxy パス追加
+- Webhook URL を LINE Developers Console に登録
+
+**完了基準**: `sudo systemctl status ai_house_mother.service` が active、`curl https://linebot.kmchan.jp/ai_house_mother/health` が 200 OK
+
+**推定**: 1 時間
+
+### T1.8 Day 1 締めのコミット・プッシュ
+
+**完了基準**: `git log` に Day 1 の作業がコミットされている
+
+## 4. Day 2: コア機能実装
+
+### T2.1 Seed データ作成
+
+**目的**: `data/seed/` 配下の架空データを 30 + 15 + 10 + 20 件投入
+
+**成果物**:
+- `data/seed/areas.json`（30 件）
+- `data/seed/stores.json`（15 件）
+- `data/seed/events.json`（10 件）
+- `data/seed/senior_posts.json`（20 件）
+- `data/seed/demo_profiles.json`（3 件）
+
+**完了基準**: `05_data_model.md` の JSON スキーマに沿った内容、京都・同志社周辺の内容として妥当
+
+**推定**: 2 時間（一気に書く）
+
+### T2.2 学生プロフィール登録実装
+
+**目的**: FR-S2 の実装
+
+**成果物**:
+- `src/handlers/student.py` にプロフィール登録フロー
+- セッションステート `profile.*`
+- `data/profiles.json` への保存
+
+**完了基準**: 学生役で対話形式にプロフィール登録できる、Bot が確認して保存を完了する
+
+**推定**: 2 時間
+
+### T2.3 Gemini クライアント実装
+
+**目的**: `06_ai_spec.md` の呼び出しラッパー実装
+
+**成果物**:
+- `src/services/gemini.py`（`propose_activities`, `answer_life_question` 等）
+- `src/services/prompts.py`（プロンプトテンプレート）
+
+**完了基準**: ローカルで Gemini を呼んで JSON 応答が返ることを手動確認
+
+**推定**: 2 時間
+
+### T2.4 やりたいこと相談実装
+
+**目的**: FR-S4 の実装（主軸機能）
+
+**成果物**:
+- `src/handlers/student.py` に `handle_want_to_do`
+- `src/templates/flex/activity_carousel.py`
+
+**完了基準**: 「やりたいこと相談」でカルーセルが表示、各カードに 2〜3 件の活動が並ぶ
+
+**推定**: 3 時間
+
+### T2.5 生活相談実装
+
+**目的**: FR-S5 の実装
+
+**成果物**:
+- `src/handlers/student.py` に `handle_life_question`
+- 関連情報の検索ロジック（キーワードマッチ）
+
+**完了基準**: 「熱っぽい、病院どこ？」等の質問に、先輩投稿を反映した回答が返る
+
+**推定**: 2 時間
+
+### T2.6 Day 2 締めのコミット・プッシュ
+
+## 5. Day 3: 家族ループ
+
+### T3.1 招待コード実装
+
+**目的**: FR-S7 の実装
+
+**成果物**:
+- `src/services/invitations.py`
+- `src/handlers/student.py` に招待コード発行フロー
+- `src/templates/flex/invitation_code.py`
+
+**完了基準**: 学生役で 6 桁コードが発行される、`data/invitations.json` に保存される
+
+**推定**: 1.5 時間
+
+### T3.2 保護者連携実装
+
+**目的**: FR-P2 の実装
+
+**成果物**:
+- `src/handlers/parent.py` にコード入力フロー
+- `data/parent_links.json` への保存
+- 学生への push 通知
+
+**完了基準**: 保護者役でコード入力 → 連携完了、学生側に通知が届く
+
+**推定**: 2 時間
+
+### T3.3 経験投稿実装
+
+**目的**: FR-S6 の実装
+
+**成果物**:
+- `src/handlers/student.py` に投稿フロー
+- `data/posts.json` への追加
+
+**完了基準**: 学生役で対話形式に投稿できる、`share_with_parent` フラグ制御が動く
+
+**推定**: 2 時間
+
+### T3.4 月次サマリー実装
+
+**目的**: FR-P3 の実装
+
+**成果物**:
+- `src/services/monthly_report.py`
+- `src/handlers/parent.py` に「今月のレポート」
+- `src/templates/flex/monthly_report.py`
+
+**完了基準**: 保護者役で「今月のレポート」を選ぶと Flex Message で学生の頑張りが表示される
+
+**推定**: 2 時間
+
+### T3.5 Day 3 締めのコミット・プッシュ
+
+## 6. Day 4: 磨き込み
+
+### T4.1 Flex Message デザイン調整
+
+**目的**: 見た目の質を上げる
+
+**手順**:
+- ウェルカム、活動カード、月次レポートの余白・色を調整
+- 絵文字の統一
+- iOS / Android 両方で表示崩れがないか確認
+
+**推定**: 2 時間
+
+### T4.2 リッチメニュー実装（P1）
+
+**目的**: 主要機能への導線を固定表示する
+
+**手順**:
+- リッチメニュー画像作成（Canva か Figma で 2500x1686）
+- LINE Messaging API でメニュー登録
+- 学生用・保護者用の 2 パターンを user 属性で切り替え
+
+**推定**: 2 時間（時間ないなら省略）
+
+### T4.3 ヘルプ・エラーメッセージ整備
+
+**目的**: FR-C1, エラー系の充実
+
+**手順**:
+- 役割別ヘルプの文言確定
+- 全エラーメッセージの語尾統一
+- 想定外入力への挙動確認
+
+**推定**: 1 時間
+
+### T4.4 デモシナリオ通し実行
+
+**目的**: `08_demo_scenario.md` の全 7 シーンを手元で実演できることを確認
+
+**手順**:
+- 学生役・保護者役のスマホでシナリオを最初から最後まで実行
+- 各シーンで想定通りに動くか確認
+- 動かない箇所を即修正
+
+**完了基準**: 中断なく全シーンが完走する
+
+**推定**: 1.5 時間
+
+### T4.5 想定質問対応 & 発表資料整合
+
+**目的**: `08_demo_scenario.md` 第 6 章の質問候補に対する回答を発表資料に反映
+
+**推定**: 1 時間
+
+### T4.6 データリセットスクリプト
+
+**目的**: デモ前に user データを消して初期状態に戻すツール
+
+**成果物**: `scripts/reset_demo.py`
+
+**完了基準**: 実行後に `data/users.json`, `profiles.json`, `posts.json`, `invitations.json`, `parent_links.json` が空になる（seed は残る）
+
+**推定**: 30 分
+
+### T4.7 発表当日チェックリスト
+
+`08_demo_scenario.md` 第 9 章のチェックリストを実行
+
+### T4.8 Day 4 締めのコミット・プッシュ
+
+## 7. タスク依存グラフ
+
+```
+T1.1 ─┐
+T1.2 ─┼─▶ T1.3 ─▶ T1.4 ─▶ T1.5 ─▶ T1.6 ─▶ T1.7 ─▶ T1.8
+      │                             │
+      │                             ▼
+      └─▶ T2.3                    T2.1 (並行)
+
+T2.1 ┐
+T1.6 ┼──▶ T2.2 ─▶ (T2.4 と T2.5 は並行可) ─▶ T2.6
+T2.3 ┘
+
+T2.6 ─▶ T3.1 ─▶ T3.2 ┐
+                     ├─▶ T3.4 ─▶ T3.5
+        T2.5 ─▶ T3.3 ┘
+
+T3.5 ─▶ T4.1 ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
+```
+
+## 8. スコープ縮退
+
+期間が逼迫した場合、以下の順で機能を削る（`02_mvp_scope.md` 6.5 節と対応）。
+
+1. **T4.2 リッチメニュー** — Quick Reply のみで代替
+2. **T2.5 生活相談の高度化** — キーワードマッチをスキップして Gemini に全部渡す
+3. **T3.3 経験投稿** — デモでは事前投入データのみで動かす、投稿 UI モックのみ
+4. **T3.4 月次サマリー** — 静的テンプレート化（"春樹さんの今月：〜" を固定文言）
+5. **T4.1 Flex Message デザイン調整** — テキスト応答に置き換え
+
+## 9. 完了状況トラッキング
+
+以下のフォーマットで各タスクの完了を記録する。`docs/` に別ファイル `progress.md` を作るか、GitHub Issues で管理するかは判断次第。
+
+```
+Day 1
+- [x] T1.1 LINE 公式アカウント取得
+- [ ] T1.2 Gemini API キー取得
+- [ ] T1.3 プロジェクト初期化
+...
+```
+
+## 10. 変更履歴
+
+| 日付 | 変更内容 | 記入者 |
+| --- | --- | --- |
+| 2026-07-05 | 初版作成 | kmch4n |
