@@ -84,8 +84,27 @@ def handle_postback(event: PostbackEvent) -> None:
         _handle_activity(event, data)
         return
 
+    if data.startswith("invite:"):
+        role = users.get_role(user_id)
+        if role != "student":
+            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            return
+        _handle_invite(event, data)
+        return
+
     logger.warning("Unknown postback data: %s", data)
     _reply_placeholder(event, users.get_role(user_id), "未対応のアクションです。")
+
+
+def _handle_invite(event: PostbackEvent, data: str) -> None:
+    if data == "invite:regenerate":
+        student.start_invitation_flow(event)
+        return
+
+    logger.warning("Unknown invite postback: %s", data)
+    _reply_placeholder(
+        event, users.get_role(event.source.user_id), "未対応の操作です。"
+    )
 
 
 def _handle_activity(event: PostbackEvent, data: str) -> None:
@@ -154,11 +173,11 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "invite":
-        _reply_placeholder(
-            event,
-            role,
-            "👨\u200d👩\u200d👧 保護者連携機能は Day 3 で実装予定です。",
-        )
+        if role != "student":
+            welcome_text, qr = build_welcome_message()
+            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            return
+        student.start_invitation_flow(event)
         return
 
     if action == "monthly_report":

@@ -24,6 +24,7 @@ from src.services import (
     activity_store,
     context_search,
     gemini,
+    invitations,
     profiles,
     prompts,
     session,
@@ -31,12 +32,14 @@ from src.services import (
 )
 from src.services.line_reply import push_flex, push_text, reply_flex, reply_text
 from src.templates.flex.activity_carousel import build_activity_carousel
+from src.templates.flex.invitation_code import build_invitation_bubble
 from src.templates.quick_reply import (
     INTEREST_TAGS,
     confirm_quick_reply,
     effort_quick_reply,
     grade_quick_reply,
     interests_quick_reply,
+    invitation_menu_quick_reply,
     main_menu_quick_reply,
     profile_start_quick_reply,
 )
@@ -552,6 +555,49 @@ def handle_life_consultation(event: MessageEvent) -> None:
     push_text(user_id, final, quick_reply=_life_quick_reply())
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
+
+
+# ---------------------------------------------------------------------------
+# Invitation code (FR-S7)
+# ---------------------------------------------------------------------------
+
+
+def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
+    """Issue a fresh 6-character invitation code and reply as Flex.
+
+    Any prior pending code for the same student is revoked inside
+    ``invitations.issue_code`` so only one active code exists at a time.
+    Session state is cleared afterwards; the follow-up navigation is
+    driven by the Quick Reply attached to the Flex message (invitation
+    menu: re-issue / main menu).
+    """
+    user_id = event.source.user_id
+    session.clear_state(user_id)
+    try:
+        record = invitations.issue_code(user_id)
+    except RuntimeError:
+        logger.exception("issue_code failed for user=%s", user_id[:8] if user_id else "?")
+        reply_text(
+            event.reply_token,
+            "コードの発行に失敗しました🙇 少し時間を空けてもう一度お試しください。",
+            quick_reply=main_menu_quick_reply("student"),
+        )
+        return
+
+    code = record["code"]
+    bubble = build_invitation_bubble(code, record["expires_at"])
+    alt_text = f"🔑 保護者連携コード: {code}（24 時間有効）"
+    reply_flex(
+        event.reply_token,
+        alt_text=alt_text,
+        contents=bubble,
+        quick_reply=invitation_menu_quick_reply(),
+    )
+    logger.info(
+        "invitation_issued user=%s code_len=%d",
+        user_id[:8] if user_id else "?",
+        len(code),
+    )
 
 
 # ---------------------------------------------------------------------------

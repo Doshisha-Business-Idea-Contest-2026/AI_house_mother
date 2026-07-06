@@ -222,3 +222,35 @@ def confirm_quick_reply() -> QuickReply:
             QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル")),
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# Invitation flow (student side)
+# ---------------------------------------------------------------------------
+
+
+def invitation_menu_quick_reply() -> QuickReply:
+    """Quick Reply attached to the invitation code delivery message.
+
+    Lets the student re-issue a fresh code (invalidating the previous
+    pending one) or jump back to the main menu without triggering a
+    life-consultation Gemini call by accident.
+    """
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="↺ 新しいコードを発行",
+                    data="invite:regenerate",
+                    display_text="新しいコードを発行",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🏠 メインメニュー",
+                    data="menu:main",
+                    display_text="メインメニュー",
+                )
+            ),
+        ]
+    )
