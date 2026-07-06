@@ -215,6 +215,7 @@ def answer_life_question(
         stores=context_hits.get("stores", []),
         areas=context_hits.get("areas", []),
         senior_posts=context_hits.get("senior_posts", []),
+        student_posts=context_hits.get("student_posts", []),
         total_hits=total_hits,
     )
     answer = call_gemini(

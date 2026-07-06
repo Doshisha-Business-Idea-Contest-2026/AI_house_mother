@@ -575,12 +575,13 @@ def handle_life_consultation(event: MessageEvent) -> None:
     logger.info(
         "life_consultation user=%s total_hits=%d zero_context=%s "
         "disclaimer_shown=%s medical_followup_shown=%s "
-        "matched_categories=%s",
+        "student_posts_hits=%d matched_categories=%s",
         user_id[:8] if user_id else "?",
         total_hits,
         zero_context,
         disclaimer_shown,
         medical_followup_shown,
+        len(result["student_posts"]),
         sorted(result["matched_categories"]),
     )
 

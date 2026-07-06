@@ -26,9 +26,10 @@ SYSTEM_PROMPT_COMMON = """あなたは「AI寮母」という LINE Bot のアシ
 - 断定を避け、選択肢を示す。
 
 【情報源】
-- ユーザーのプロフィール、過去の投稿、地域情報、先輩投稿を参照して回答する。
+- ユーザーのプロフィール、地域情報、先輩投稿（seed）、および他の学生が投稿した経験（匿名）を参照して回答する。
 - 情報がない場合は「わからない」と正直に答える。
-- 参照した先輩投稿がある場合、「先輩の体験より」と注記する。
+- 参照した先輩投稿・学生投稿がある場合、「先輩の体験より」と注記する。
+- 学生投稿は匿名情報として提供されるので、投稿者の名前・学年・大学などを推測して記載しない。
 """
 
 
@@ -95,6 +96,29 @@ def _summarise_senior_posts(posts: list[dict[str, Any]]) -> str:
     )
 
 
+def _summarise_student_posts(posts: list[dict[str, Any]]) -> str:
+    """Format anonymized student posts for the life-consultation prompt.
+
+    Only the allow-listed fields (title / body / area / category /
+    created_at) from :func:`posts.list_all_for_context` are shown here.
+    Nothing that could point back to an author is added — no user id,
+    no profile snippet, no post_id.
+    """
+    if not posts:
+        return "（該当なし）"
+    lines: list[str] = []
+    for p in posts:
+        title = p.get("title", "")
+        body_preview = (p.get("body") or "")[:200]
+        area = p.get("area") or ""
+        category = p.get("category") or ""
+        header = f"- 【{category}】「{title}」"
+        if area:
+            header += f" (場所: {area})"
+        lines.append(f"{header}\n  → {body_preview}")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Function-level prompt builders
 # ---------------------------------------------------------------------------
@@ -136,10 +160,16 @@ def build_life_consultation_prompt(
     stores: list[dict[str, Any]],
     areas: list[dict[str, Any]],
     senior_posts: list[dict[str, Any]],
+    student_posts: list[dict[str, Any]],
     *,
     total_hits: int,
 ) -> str:
     """Prompt used by ``answer_life_question``.
+
+    ``student_posts`` are the anonymized runtime posts from
+    :func:`posts.list_all_for_context`. The prompt injects them as
+    "同じマンションの学生の経験投稿" and instructs Gemini to quote them
+    without inferring the author (see docs/06_ai_spec.md §4.2).
 
     When ``total_hits == 0`` the prompt includes an explicit constraint
     that forbids Gemini from fabricating phone numbers, opening hours,
@@ -157,13 +187,14 @@ def build_life_consultation_prompt(
     return (
         SYSTEM_PROMPT_COMMON
         + "\n\n【今回の依頼】\n"
-        "学生から生活相談が届きました。地域情報と先輩投稿を参照して回答してください。\n\n"
+        "学生から生活相談が届きました。地域情報・先輩投稿・過去の学生投稿を参照して回答してください。\n\n"
         "【学生プロフィール】\n"
         + _summarise_profile(profile)
         + "\n\n【関連情報の件数】\n"
         f"- stores: {len(stores)} 件\n"
         f"- areas: {len(areas)} 件\n"
         f"- senior_posts: {len(senior_posts)} 件\n"
+        f"- student_posts: {len(student_posts)} 件\n"
         f"- total_hits: {total_hits} 件\n"
         + "\n【関連する店舗】\n"
         + _summarise_stores(stores)
@@ -171,9 +202,12 @@ def build_life_consultation_prompt(
         + _summarise_areas(areas)
         + "\n\n【関連する先輩投稿】\n"
         + _summarise_senior_posts(senior_posts)
+        + "\n\n【同じマンションの学生の経験投稿（匿名）】\n"
+        + _summarise_student_posts(student_posts)
         + f"\n\n【学生の発言】\n{user_message}\n\n"
         "【回答時の注意】\n"
-        "- 参照した先輩投稿がある場合、「先輩の体験より: ...」と 1 文添える。\n"
+        "- 参照した先輩投稿・学生投稿がある場合、「先輩の体験より: ...」と 1 文添える。\n"
+        "- 学生投稿は匿名情報なので、投稿者の名前・学年・大学などを推測して記載しない。\n"
         "- 医療的な内容なら「症状が続く場合は医療機関を受診してください」を必ず含める。\n"
         "- 緊急を疑う場合は #7119（京都府救急安心センター）や 119 を案内する。\n"
         "- 実在の店舗・病院名は「情報が古い可能性があります」と注記する。\n"
