@@ -17,6 +17,7 @@ from linebot.v3.messaging import (
     QuickReply,
     ReplyMessageRequest,
     Sender,
+    ShowLoadingAnimationRequest,
     TextMessage,
 )
 
@@ -26,6 +27,12 @@ logger = logging.getLogger(__name__)
 
 SenderPreset = Literal["friendly", "system", "notify"]
 _DEFAULT_PRESET: SenderPreset = "friendly"
+
+# Loading indicator (docs/04 §3.6). Values below are enforced by the
+# LINE API: loading_seconds must be a multiple of 5 in [5, 60].
+DEFAULT_LOADING_SECONDS = 20
+_LOADING_SECONDS_MIN = 5
+_LOADING_SECONDS_MAX = 60
 
 
 def _build_sender(preset: SenderPreset | None) -> Sender:
@@ -167,5 +174,60 @@ def push_flex(
             )
     except Exception:
         logger.exception("push_flex failed")
+        if raise_on_error:
+            raise
+
+
+def show_loading(
+    line_user_id: str,
+    loading_seconds: int = DEFAULT_LOADING_SECONDS,
+    raise_on_error: bool = False,
+) -> None:
+    """Display the LINE loading indicator to ``line_user_id``.
+
+    Consumes no ``reply_token``: the caller is expected to send the
+    actual response via :func:`push_text` / :func:`push_flex` once the
+    long-running work (Gemini call, seed search, ...) finishes. If the
+    real response arrives before the ``loading_seconds`` timeout, LINE
+    hides the indicator automatically.
+
+    Args:
+        line_user_id: Target LINE userId. The bot must have push
+            permission for this user (satisfied by every friend-added
+            account).
+        loading_seconds: How long to keep the indicator alive.
+            :data:`_LOADING_SECONDS_MIN` to :data:`_LOADING_SECONDS_MAX`
+            in multiples of 5; defaults to
+            :data:`DEFAULT_LOADING_SECONDS`.
+        raise_on_error: When ``True`` re-raise LINE SDK exceptions so
+            batch callers can count failures. Defaults to ``False`` —
+            silently logging matches the fire-and-forget style of the
+            other helpers in this module.
+
+    Raises:
+        ValueError: When ``loading_seconds`` is outside the LINE API
+            contract (multiple of 5 within [5, 60]).
+    """
+    if (
+        loading_seconds < _LOADING_SECONDS_MIN
+        or loading_seconds > _LOADING_SECONDS_MAX
+        or loading_seconds % 5 != 0
+    ):
+        raise ValueError(
+            "loading_seconds must be a multiple of 5 in "
+            f"[{_LOADING_SECONDS_MIN}, {_LOADING_SECONDS_MAX}]; "
+            f"got {loading_seconds!r}"
+        )
+
+    try:
+        with ApiClient(configuration) as api_client:
+            cl = MessagingApi(api_client)
+            cl.show_loading_animation(
+                ShowLoadingAnimationRequest(
+                    chat_id=line_user_id, loading_seconds=loading_seconds
+                )
+            )
+    except Exception:
+        logger.exception("show_loading failed")
         if raise_on_error:
             raise
