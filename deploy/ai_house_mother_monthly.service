@@ -1,0 +1,16 @@
+[Unit]
+Description=AI House Mother Monthly Report Push (oneshot)
+After=network.target ai_house_mother.service
+Requires=network.target
+
+[Service]
+Type=oneshot
+User=kmch4n
+WorkingDirectory=/home/kmch4n/dev/AI_house_mother
+Environment="PATH=/home/kmch4n/dev/AI_house_mother/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/home/kmch4n/dev/AI_house_mother/.venv"
+Environment="TZ=Asia/Tokyo"
+EnvironmentFile=/home/kmch4n/dev/AI_house_mother/.env
+ExecStart=/home/kmch4n/dev/AI_house_mother/.venv/bin/python scripts/push_monthly_reports.py
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,10 @@
+[Unit]
+Description=Trigger AI House Mother monthly report push on the 1st of each month 09:00 JST
+
+[Timer]
+OnCalendar=*-*-01 09:00:00 Asia/Tokyo
+Persistent=true
+Unit=ai_house_mother_monthly.service
+
+[Install]
+WantedBy=timers.target
