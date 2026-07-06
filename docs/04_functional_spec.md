@@ -181,6 +181,36 @@ T4.1b 実装により、上表の分類はコードに反映済み。`src/servic
 
 LINE 側は iconUrl でキャッシュするため、同一 URL のまま画像だけ差し替えるとキャッシュヒットで古い画像が表示され続ける可能性がある。差し替え時はファイル名にバージョン suffix（例: `friendly_v2.png`）を付け、`src/config.py` の URL を更新して確実にキャッシュを無効化する。
 
+### 3.6 Loading indicator による中間応答の可視化
+
+**目的**: Gemini 呼び出しなど 2 秒以上の待機が発生する箇所で、テキストの中間応答（「少し考えます…」等）に代えて LINE Messaging API の Loading Indicator を表示する。ユーザーには「Bot が入力中…」のアニメーションが提示され、テキストのゴミが残らず、モバイルで自然な UX になる（[LINE Developers ブログ 2024-04-17](https://developers.line.biz/ja/news/2024/04/17/loading-indicator/)）。
+
+**LINE API**:
+
+- Endpoint: `POST /v2/bot/chat/loading/start`
+- SDK: `linebot.v3.messaging.MessagingApi.show_loading_animation(ShowLoadingAnimationRequest(chat_id, loading_seconds))`
+- `chat_id` (必須): 表示対象ユーザー LINE userId
+- `loading_seconds` (任意): 5〜60 秒、**5 の倍数** に限る（省略時サーバー既定 20 秒）
+- Bot は `chat_id` に対して push 権限を持っている必要がある（既に稼働中の設定で満たす）
+- **`reply_token` を消費しない**（reply_message とは独立ルート）
+
+**プロジェクトの運用ルール**:
+
+- `loading_seconds` の既定は **20 秒**。根拠: Gemini flash-lite の平均応答時間 3〜8 秒、想定最大 15 秒に対して余裕を持たせつつ、LINE Webhook 30 秒 timeout と 60 秒上限との衝突を避ける。
+- 実装は `src/services/line_reply.py::show_loading(line_user_id, loading_seconds=20, raise_on_error=False)` に集約する。
+- Loading Indicator は §3.5 の Sender switch（`friendly` / `system` / `notify`）と **直交** する概念で、アイコン切替はしない。後続の `push_text` / `push_flex` の `sender` 引数は独立に効く。
+- API 呼び出しが失敗（LINE 側障害・レート制限）しても Gemini 応答の push は必ず継続する（`raise_on_error=False` 既定）。中間表示が出ない実害は本応答が届くことで十分に緩和される。
+
+**適用箇所**（Day 4 T4.11 で置き換え済み）:
+
+| Handler | 削除する中間 reply | 追加する呼び出し |
+| --- | --- | --- |
+| `handlers/student.py::handle_life_consultation` | 「💭 少し考えます…」 | `show_loading(user_id)` |
+| `handlers/student.py::handle_want_to_do` | 「🤔 あなたに合いそうな活動を考えています…」 | `show_loading(user_id)` |
+| `handlers/student.py::handle_activity_detail` | 「📖 「{title}」について調べています…」 | `show_loading(user_id)` |
+
+いずれも緊急定型やエラー系の分岐が済んだ**直後、Gemini 呼び出しの直前**に配置する。緊急定型は待機時間が発生しないため Loading Indicator は不要。
+
 ## 4. 学生機能
 
 ### 4.1 FR-S1 / US-S01: 初回役割選択
@@ -675,3 +705,4 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
 | 2026-07-06 | Day 3 家族ループ仕様を確定: §3.3 に月次 push ログ 7 項目、§3.5 に Day 3 期間 sender 未指定の暫定運用、§4.5 に 6 ステップ・area 正規化・share_with_parent 不変条件、§4.6 に再発行 invalidate と発行後 idle の誘導、§5.2 にエラー 4 種と 5 回失敗リセット、§5.3 に Pull/Push 併用・非対称ルール、§7 に予約語ルーティング優先順位表 | kmch4n |
 | 2026-07-06 | Day 4 T4.1b Sender switch を実装完了: §3.5 の暫定 friendly 注記を撤回し、`line_reply` に `sender` 引数と `SENDER_PRESETS` の呼び出し実態、および friendly/system/notify それぞれの現行呼び出し場所を反映 | kmch4n |
 | 2026-07-06 | §4.4 生活相談の情報源に `data/posts.json` を追加、§4.5 経験投稿に「他学生の生活相談 context へ全件匿名化継承」ポリシーを追記（T4.10 の docs-first 更新、SECI モデル体現） | kmch4n |
+| 2026-07-06 | §3.6 Loading indicator による中間応答の可視化を新設（Day 4 T4.11 の docs-first）: SDK/API 仕様・20 秒既定・Sender switch との直交性・適用 3 handler の対応表 | kmch4n |

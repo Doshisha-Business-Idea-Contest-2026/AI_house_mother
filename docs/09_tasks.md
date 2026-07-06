@@ -433,6 +433,33 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T4.8 Day 4 締めのコミット・プッシュ
 
+### T4.11 Loading Indicator 実装（中間応答の UX 磨き込み）
+
+**目的**: LINE Messaging API の Loading Indicator（`docs/04_functional_spec.md §3.6`）を活用し、Gemini 応答待ちの体感待機時間を短縮する。テキストの中間応答（「少し考えます…」等）を削除し、「Bot が入力中…」のアニメーションに置き換える。
+
+**成果物**:
+
+- `src/services/line_reply.py::show_loading(line_user_id, loading_seconds=20, raise_on_error=False)` を新設
+  - `DEFAULT_LOADING_SECONDS = 20` を定数として持つ
+  - 5 の倍数・5〜60 秒の範囲を `ValueError` でバリデーション
+  - 内部で `MessagingApi.show_loading_animation(ShowLoadingAnimationRequest(...))` を呼ぶ
+  - 既存の push ヘルパーと同じ fire-and-forget パターン（`raise_on_error` オプション付き）
+- `src/handlers/student.py` の 3 handler で中間 `reply_text` を削除し `show_loading(user_id)` に置換:
+  - `handle_life_consultation`（緊急定型の後、Gemini 呼び出しの直前）
+  - `handle_want_to_do`（プロフィール未登録の error の後、Gemini 呼び出しの直前）
+  - `handle_activity_detail`（activity_store.resolve error の後、Gemini 呼び出しの直前）
+
+**完了基準**:
+
+- LINE 実機で「やりたい」「生活相談」「活動詳細」を送信 → テキストの中間応答は表示されず、Loading Indicator が出たあと Gemini 応答が push で届く
+- 20 秒より短い応答時は Gemini 応答 push が届いた瞬間に Loading Indicator が自動的に消える
+- `.venv/bin/python -c "from src.services.line_reply import show_loading; show_loading('U...')"` で例外が出ない
+- 引数バリデーション: `show_loading(..., loading_seconds=7)` で ValueError
+
+**推定**: 30〜45 分
+
+**Day 割当**: Day 4 に組み込む。T4.10 の後、T4.4（デモ通し）の前に実施することで、デモシナリオを Loading Indicator つきで通す。
+
 ### T4.10 学生投稿を生活相談 context に組み込む（SECI モデル継承）
 
 **目的**: `docs/06_ai_spec.md §4.2` および `docs/05_data_model.md §8` の docs-first で確定した「学生の経験投稿を後の学生の生活相談 Gemini プロンプトに匿名化して継承する」ポリシーを実装する。SECI モデルの「形式知化 → 継承」サイクルをコードで体現。
@@ -538,3 +565,4 @@ Day 1
 | 2026-07-06 | T4.1 を T4.1a（Flex デザイン調整）と T4.1b（Sender switch 実装）に分割、タスク依存グラフと縮退順序を同期 | kmch4n |
 | 2026-07-06 | Day 3 タスク詳細化: T3.0 docs 先行更新 & init_data 拡張を新設、T3.1〜T3.4 の成果物・完了基準を家族ループ仕様（招待コード再発行 invalidate / 5 回失敗リセット / 6 ステップ経験投稿 / Pull 主軸月次レポート）に合わせて拡張、T3.4-b を月次 Push スケジューラとして分離、依存グラフを同期 | kmch4n |
 | 2026-07-06 | T4.10 を新設: 学生投稿を生活相談 Gemini context に匿名化継承する SECI モデル体現タスク（成果物 posts.list_all_for_context / context_search 拡張 / prompts 更新 / gemini 呼び出し） | kmch4n |
+| 2026-07-06 | T4.11 を新設: LINE Loading Indicator API による中間応答 UX 磨き込み。line_reply.show_loading を追加し、student.py の 3 handler で「考えています…」等のテキスト reply を Loading Indicator に置き換える | kmch4n |
