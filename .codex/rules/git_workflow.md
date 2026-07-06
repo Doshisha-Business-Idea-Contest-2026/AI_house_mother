@@ -7,7 +7,7 @@
 - ユーザーの明示的な指示がない限り、`git add`、`git commit`、GitHub Issue の書き込みアクションを実行してはならない。
 - コミット依頼を受けた際は `.codex/rules/commit_message.md` と直近 10 件のコミット履歴を確認してからメッセージを起草する。
 - コミットメッセージや Issue 本文、コメント、PR 説明に Claude、Codex、その他 AI エージェントへの言及を含めない。
-- コミット・Issue 書き込み前に、`git config` の identity がユーザー本人（`kmchan@kmchan.jp` / `kmch4n`）のものであることを確認する。Bot や AI エージェントの identity になっていたら停止して報告する。
+- コミット・Issue 書き込み前に、`git config` の identity が AI/bot ではなく作業中の開発者本人のものであることを確認する。AI エージェントの identity になっていたら停止して報告する。
 - `git commit` 済みの変更は、ユーザーの追加指示なしに `git push` してよい（このリポジトリ固有の運用。`git add` / `git commit` 自体は従来どおり明示指示が必要）。force push（`--force` / `-f`）は「破壊的操作の禁止」に従い実行しない。
 
 ## ブランチ運用
@@ -62,11 +62,14 @@ chore/upgrade-line-bot-sdk
 
 ## PR の書き方
 
-- PR タイトルはコミットメッセージと同じ規約（`[gitmoji] English title`）を使う。
-- PR 本文には以下を含める:
-  - Summary（変更概要、1〜3 の箇条書き）
-  - Test plan（動作確認手順のチェックリスト）
-  - 関連 Issue / チケット番号（あれば）
+- タイトルはコミットメッセージと同じ規約（`[gitmoji] English title`）を使う。
+- 本文は **日本語**で書き、以下を含める（Issue と揃えて日本語運用）:
+  - **概要**（変更内容、1〜3 の箇条書き）
+  - **テスト手順**（動作確認のチェックリスト）
+  - **関連 Issue**（`Closes #12` などで紐づける）
+- **ラベル必須**: Issue と同基準で、種別ラベル `type: *` と優先度ラベル `priority: *` を 1 つずつ付ける。
+- **merge 方式**: デフォルトは squash + ブランチ削除（`gh pr merge <番号> --squash --delete-branch`）。merge 後はローカルブランチも削除して `main` に戻る。
+- merge 前に diff を自分の目で確認する（セルフレビュー。詳細は「ブランチ運用」を参照）。
 - AI 生成であっても "Generated with Claude Code" などの署名を追加しない。
 
 ## Issue の書き方
