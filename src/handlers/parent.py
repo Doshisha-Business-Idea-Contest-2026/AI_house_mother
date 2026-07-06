@@ -1,8 +1,8 @@
 """Parent-facing business flows.
 
 This module owns the multi-turn dialogs available to parent users:
-invitation code redemption (Day 3, FR-P2) and monthly report retrieval
-(Day 3, FR-P3, Pull path — implemented incrementally in T3.4).
+invitation code redemption (FR-P2) and monthly report retrieval
+(FR-P3, Pull path).
 
 Handlers are dispatched here from ``handlers/message.py`` (session +
 reserved words) and ``handlers/postback.py`` (menu:link_student /
@@ -155,7 +155,7 @@ def handle_link_text(event: MessageEvent) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Monthly report (Pull path — placeholder; full impl arrives in T3.4)
+# Monthly report (Pull path — FR-P3)
 # ---------------------------------------------------------------------------
 
 

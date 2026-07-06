@@ -1,11 +1,12 @@
 """Text message event handler.
 
-Routing order (see ``docs/09_tasks.md`` and the Day 2 plan):
+Routing order (see the reserved-word precedence table in
+``docs/04_functional_spec.md`` §7):
 
 1. Reserved words (``キャンセル``, ``ヘルプ``, ``プロフィール``, etc.) always
    win: they clear any active session and trigger the target action.
 2. If a session is active, the current state decides the routing target
-   (profile flow / life consultation / etc.).
+   (profile flow / life consultation / experience posting / parent link).
 3. Otherwise, short text falls back to the main menu prompt while long
    text is treated as a life-consultation question.
 """
@@ -52,15 +53,16 @@ HELP_STUDENT = (
     "AI寮母の使い方 🏠\n"
     "🎯 やりたいこと相談 - あなたに合う活動を提案\n"
     "💬 生活相談 - 生活のお困りごとに答える\n"
-    "✏️ 経験を投稿 - 参加した活動や利用したお店を記録 (Day 3)\n"
+    "✏️ 経験を投稿 - 参加した活動や利用したお店を記録\n"
     "👤 プロフィール - 情報の確認・更新\n"
-    "👨\u200d👩\u200d👧 保護者連携 - 招待コード発行 (Day 3)"
+    "👨\u200d👩\u200d👧 保護者連携 - 招待コードを発行して保護者と紐付け\n"
+    "❓ ヘルプ - この案内"
 )
 
 HELP_PARENT = (
     "AI寮母の使い方 🏠\n"
-    "📊 今月のレポート - お子さんの頑張り確認 (Day 3)\n"
-    "🔗 学生と連携 - 招待コードで学生と紐付け (Day 3)\n"
+    "📊 今月のレポート - お子さんの頑張り確認\n"
+    "🔗 学生と連携 - 招待コードで学生と紐付け\n"
     "❓ ヘルプ - この案内"
 )
 
@@ -101,7 +103,9 @@ def handle_text(event: MessageEvent) -> None:
     if text in ROLE_SWITCH_COMMANDS:
         session.clear_state(user_id)
         _reply_placeholder(
-            event, user_id, "役割変更機能は準備中です。（Day 4 で実装予定）"
+            event,
+            user_id,
+            "役割変更は本 MVP では未対応です。「はじめる」から選び直せます。",
         )
         return
 

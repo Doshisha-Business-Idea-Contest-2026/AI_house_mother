@@ -1,9 +1,9 @@
 """Flex Message bubble for the monthly parent summary (FR-P3).
 
 A single mega bubble that lists up to ``MAX_POSTS_IN_REPORT`` posts of a
-student, each prefixed with a category emoji. Day 3 keeps the layout
-lean: no "send a message" button, no external links — Day 4's T4.1a
-polishes and adds sender switch differentiation.
+student, each prefixed with a category emoji. The layout intentionally
+stays lean: no "send a message" button and no external links so the
+parent view keeps the focus on the student's own text.
 """
 from __future__ import annotations
 
@@ -60,7 +60,8 @@ def build_monthly_report_bubble(
 
     Args:
         student_display: How to address the student in the header
-            (Day 3 uses ``"あなたのお子さん"`` by default).
+            (defaults to ``"あなたのお子さん"``; profile display names
+            arrive in a future ``profiles.display_name`` field).
         year_month: The report year-month string, e.g. ``"2026-07"``.
         posts: Up to ``MAX_POSTS_IN_REPORT`` post dicts, newest first.
     """

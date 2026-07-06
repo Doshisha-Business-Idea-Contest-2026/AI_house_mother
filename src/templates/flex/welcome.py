@@ -1,7 +1,8 @@
 """Welcome message shown right after a user adds the bot.
 
-Day 1 keeps this as a simple text + Quick Reply. Day 4 will replace it
-with a Flex bubble if time allows.
+Currently a simple text + Quick Reply keyboard. The Flex bubble
+variant landed as part of the Day 4 T4.1a polish (see the sibling
+history in this directory).
 """
 from linebot.v3.messaging import (
     MessageAction,

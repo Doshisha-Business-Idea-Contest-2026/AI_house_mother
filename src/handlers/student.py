@@ -1,9 +1,8 @@
 """Student-facing business flows.
 
 This module owns the multi-turn dialog logic for a student user:
-profile registration (Day 2), want-to-do consultation (Day 2), life
-consultation (Day 2). Later days will add experience posting and
-parent invitation code issuance.
+profile registration, want-to-do consultation, life consultation,
+experience posting and invitation code issuance.
 
 The router entry points (``handlers/message.py`` and
 ``handlers/postback.py``) delegate here based on session state and
@@ -340,7 +339,7 @@ def _finalize_profile(event: PostbackEvent) -> None:
     role = users.get_role(user_id) or "student"
     reply_text(
         event.reply_token,
-        "プロフィール登録完了です🎉\n\nメニューから使いたい機能を選んでください。\n（🎯 やりたいこと相談 は Day 2 完成、他は順次追加中）",
+        "プロフィール登録完了です🎉\n\n下のメニューから使いたい機能を選んでください。",
         quick_reply=main_menu_quick_reply(role),
         sender="system",
     )
@@ -452,7 +451,7 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
 
 
 def handle_activity_participated(event: PostbackEvent, key: str) -> None:
-    """Handle the "参加した" button (Day 2 acks only; Day 3 records to posts.json)."""
+    """Handle the "参加した" button. Acks the tap and points at ✏️ 経験を投稿."""
     activity = activity_store.resolve(key)
     if activity is None:
         reply_text(
@@ -467,7 +466,7 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
         event.reply_token,
         (
             f"「{activity.get('title', '')}」に参加した記録を受け付けました！✨\n"
-            "詳しい体験投稿は Day 3 で追加予定です。今日はここまでで OK です。"
+            "詳しく投稿したい場合は「✏️ 経験を投稿」から記録できます。"
         ),
         quick_reply=_activity_quick_reply(),
         sender="friendly",

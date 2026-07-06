@@ -4,11 +4,15 @@ Handles all ``PostbackAction`` data payloads coming from Quick Reply and
 Flex Message buttons. The prefix before the first ``:`` identifies which
 sub-handler owns the action.
 
-Prefixes supported so far:
+Supported prefixes:
 
-- ``role:{student|parent}`` — initial role selection (Day 1)
-- ``menu:*``                  — main menu / navigation (Day 2)
-- ``profile:*``               — profile registration flow (Day 2)
+- ``role:{student|parent}``  — initial role selection
+- ``menu:*``                  — main menu / navigation
+- ``profile:*``               — profile registration flow
+- ``activity:*``              — activity carousel detail / participation
+- ``invite:regenerate``       — student invitation code re-issue
+- ``post:*``                  — experience posting flow
+- ``link:*``                  — parent link entry / confirmation
 """
 import logging
 
@@ -34,7 +38,7 @@ STUDENT_CONFIRM = (
 
 PARENT_CONFIRM = (
     "こんにちは、保護者の方！👨\u200d👩\u200d👧\n"
-    "お子さんから招待コードを受け取っていますか？（コード入力機能は Day 3 で実装予定）"
+    "連携コードをお持ちであれば、下のメニューの「🔗 学生と連携」から入力できます。"
 )
 
 

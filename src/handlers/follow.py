@@ -3,8 +3,8 @@
 Fires when a user adds AI 寮母 as a friend. Sends the welcome message
 containing the role-selection Quick Reply.
 
-Note: The FollowEvent's reply_token expires in 30 seconds. Once Gemini
-is introduced (Day 2+), a dynamic welcome should switch to push_message
+Note: The FollowEvent's reply_token expires in 30 seconds. If a
+Gemini-backed welcome ever becomes necessary, switch to push_message
 instead of relying on reply_token.
 """
 import logging
