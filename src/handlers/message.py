@@ -223,17 +223,18 @@ def handle_text(event: MessageEvent) -> None:
     # ------------------------------------------------------------------
     if len(text) >= 10:
         role = users.get_role(user_id)
-        if role != "student":
-            alt_text, contents, qr = build_welcome_message()
-            reply_flex(
-                event.reply_token,
-                alt_text=alt_text,
-                contents=contents,
-                quick_reply=qr,
-                sender="system",
-            )
+        if role == "student":
+            student.handle_life_consultation(event)
             return
-        student.handle_life_consultation(event)
+        # Non-student (parent or unregistered) follows the §3.4 terminal-
+        # reply rule: _reply_placeholder routes role=parent to the parent
+        # menu and role=None to the welcome bubble, so a registered parent
+        # is no longer bounced back to onboarding on free text.
+        _reply_placeholder(
+            event,
+            user_id,
+            "メッセージありがとうございます😊 下のメニューから選んでください👇",
+        )
         return
 
     # Short unrecognised text → gentle prompt (§3.4).
