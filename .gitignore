@@ -23,3 +23,4 @@ data/posts.json
 data/invitations.json
 data/parent_links.json
 data/session_activities.json
+data/monthly_report_state.json

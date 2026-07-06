@@ -1,11 +1,13 @@
 """Initialize empty runtime JSON files under data/.
 
 Creates the following files with empty schemas if they do not exist:
-  - data/users.json          {"users": {}}
-  - data/profiles.json       {"profiles": {}}
-  - data/posts.json          {"posts": []}
-  - data/invitations.json    {"invitations": []}
-  - data/parent_links.json   {"links": []}
+  - data/users.json                  {"users": {}}
+  - data/profiles.json               {"profiles": {}}
+  - data/posts.json                  {"posts": []}
+  - data/invitations.json            {"invitations": []}
+  - data/parent_links.json           {"links": []}
+  - data/session_activities.json     {"activities": {}}
+  - data/monthly_report_state.json   {"last_batch": null}
 
 Also ensures data/seed/ exists (seed JSON files are added by later tasks).
 
@@ -13,16 +15,19 @@ Existing files are never overwritten.
 """
 import json
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = REPO_ROOT / "data"
 
-INITIAL_FILES: dict[str, dict | list] = {
+INITIAL_FILES: dict[str, Any] = {
     "users.json": {"users": {}},
     "profiles.json": {"profiles": {}},
     "posts.json": {"posts": []},
     "invitations.json": {"invitations": []},
     "parent_links.json": {"links": []},
+    "session_activities.json": {"activities": {}},
+    "monthly_report_state.json": {"last_batch": None},
 }
 
 
