@@ -175,3 +175,38 @@ def list_current_month_shared(
     """
     ref = (now_jst or datetime.now(JST)).astimezone(JST)
     return list_month_shared(student_user_id, ref.year, ref.month)
+
+
+# Fields allowed to reach the life-consultation Gemini prompt. Keep this
+# tuple in lockstep with docs/06_ai_spec §4.2 and docs/05_data_model §8:
+# adding anything that could identify the author (line_user_id, post_id,
+# share_with_parent, profile fields) would break the anonymization
+# contract behind the SECI-model knowledge inheritance feature.
+_CONTEXT_FIELDS: tuple[str, ...] = (
+    "title",
+    "body",
+    "area",
+    "category",
+    "created_at",
+)
+
+
+def list_all_for_context() -> list[dict[str, Any]]:
+    """Return every stored post projected to the anonymized allow-list.
+
+    The result feeds ``context_search.find_relevant_context`` (T4.10)
+    which forwards it to the life-consultation Gemini prompt. Only the
+    five fields listed in :data:`_CONTEXT_FIELDS` are exposed;
+    ``line_user_id`` / ``post_id`` / ``share_with_parent`` / any profile
+    information must never be reintroduced here.
+
+    Returns:
+        A list of dicts with keys ``title``, ``body``, ``area``,
+        ``category`` and ``created_at``. Original ordering is preserved.
+    """
+    data = _load()
+    projected: list[dict[str, Any]] = []
+    for row in data["posts"]:
+        entry = {field: row.get(field) for field in _CONTEXT_FIELDS}
+        projected.append(entry)
+    return projected
