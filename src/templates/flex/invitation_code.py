@@ -75,7 +75,7 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "type": "text",
                     "text": code,
                     "color": CODE_TEXT_COLOR,
-                    "size": "4xl",
+                    "size": "3xl",
                     "weight": "bold",
                     "align": "center",
                 },
@@ -127,7 +127,7 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "height": "sm",
                     "action": {
                         "type": "postback",
-                        "label": "↺ 新しいコードを発行",
+                        "label": "🔄 新しいコードを発行",
                         "data": "invite:regenerate",
                         "displayText": "新しいコードを発行",
                     },

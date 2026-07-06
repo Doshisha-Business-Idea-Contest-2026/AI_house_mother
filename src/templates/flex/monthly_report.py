@@ -68,7 +68,7 @@ def build_monthly_report_bubble(
     body_contents: list[dict[str, Any]] = [
         {
             "type": "text",
-            "text": f"✨ 頑張ったこと {len(posts)} 件",
+            "text": f"🌸 頑張ったこと {len(posts)} 件",
             "weight": "bold",
             "size": "md",
         },
@@ -78,7 +78,7 @@ def build_monthly_report_bubble(
         body_contents.extend(_post_row(post))
         if index < len(posts) - 1:
             body_contents.append(
-                {"type": "separator", "color": "#f0f0f0"}
+                {"type": "separator", "color": "#e0e0e0"}
             )
 
     return {
@@ -108,7 +108,7 @@ def build_monthly_report_bubble(
         "body": {
             "type": "box",
             "layout": "vertical",
-            "spacing": "sm",
+            "spacing": "md",
             "contents": body_contents,
         },
     }

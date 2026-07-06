@@ -87,7 +87,7 @@ def _build_bubble(
                 "type": "text",
                 "text": "🧭 AI 提案（要確認）",
                 "color": "#ffffff",
-                "size": "xs",
+                "size": "sm",
                 "wrap": True,
             }
         )

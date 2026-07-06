@@ -334,7 +334,7 @@ def invitation_menu_quick_reply() -> QuickReply:
         items=[
             QuickReplyItem(
                 action=PostbackAction(
-                    label="↺ 新しいコードを発行",
+                    label="🔄 新しいコードを発行",
                     data="invite:regenerate",
                     display_text="新しいコードを発行",
                 )
