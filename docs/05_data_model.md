@@ -178,6 +178,18 @@ def save_json(relative_path: str, data: Any) -> None:
 
 MVP 期間は uvicorn を `--workers 1` で起動しているため、リクエストは in-process でシリアライズされる。加えて `save_json` は `LOCK_EX` で書き込みロックを取るので、最悪でも `load → append → save` サイクルが原子的に完了する。ワーカー数を増やす場合はプロセス間 race が発生し得るので、Redis などの外部採番機構への切替が必要（`08_demo_scenario.md` 想定範囲外）。
 
+**他学生の生活相談への継承**（T4.10、SECI モデル）:
+
+`data/posts.json` は月次サマリー用途に加えて、**他の学生が生活相談を送った際の Gemini context** の一次情報源にもなる。この用途で外部（Gemini）に渡すのは以下の 5 フィールドのみに限定する:
+
+- `title`
+- `body`
+- `area`
+- `category`
+- `created_at`
+
+`line_user_id` / `post_id` / `share_with_parent` は Gemini に **一切渡さない**。専用の匿名化アクセサ `src/services/posts.py::list_all_for_context()` を経由することで、生の posts.json レコードが誤って上流に流れないよう構造的に防ぐ。詳細な引用ルールと Zero-context への影響は `docs/06_ai_spec.md §4.2` および §5.3 を参照。
+
 ### 4.4 invitations.json
 
 招待コード。
@@ -582,6 +594,50 @@ def _first_of_prev_month(now_jst: datetime) -> datetime:
 
 `list_month_shared` は必ず `share_with_parent == True` を filter に含める。この 1 行が漏れると `false` 指定の投稿が保護者に露出する致命的なプライバシー事故になるため、実装・レビューで最重要不変条件として扱う（`04_functional_spec.md §4.5` 参照）。
 
+## 8. 経験投稿の他学生への継承（SECI モデル）
+
+Day 4 の T4.10 で、`data/posts.json` を「他の学生の生活相談 context」の情報源として組み込む。**保護者への月次サマリー用の `share_with_parent` フラグとは独立** に、全投稿がデフォルトで他学生の生活相談 Gemini プロンプトの参考情報となる。
+
+### 8.1 匿名化ポリシー
+
+外部（Gemini）に渡すのは以下 5 フィールドのみ:
+
+| フィールド | 目的 |
+| --- | --- |
+| `title` | Gemini が話題との関連度を判断 |
+| `body` | 本文の内容を引用元にする |
+| `area` | 地名・店名の情報 |
+| `category` | 引用時のトーン制御（tips なら「生活の知恵より」等） |
+| `created_at` | 「最近」「先日」などの時制感を保つ（強調なし） |
+
+**渡さないフィールド**:
+
+- `line_user_id`（投稿者識別）
+- `post_id`（内部識別）
+- `share_with_parent`（保護者向けフラグは context 用途と無関係）
+
+投稿者のプロフィール（大学名・学部・学年・興味など）も一切渡さない。
+
+### 8.2 実装アクセサ
+
+`src/services/posts.py::list_all_for_context()` が単一の入口となる:
+
+```python
+def list_all_for_context() -> list[dict[str, Any]]:
+    """Return anonymized post payloads for the life-consultation Gemini prompt.
+
+    Every stored post is projected to the 5-field allow-list
+    (title, body, area, category, created_at). Callers must not
+    reintroduce line_user_id / post_id / share_with_parent.
+    """
+```
+
+呼び出し側は `context_search.find_relevant_context` のみで、他の場所からは呼び出さないこと。回帰リスクを減らすため、コードレビュー時に `posts.py` の他の list_* との差異を意識する。
+
+### 8.3 Zero-context 判定への影響
+
+`total_hits` が 4 要素（stores + areas + senior_posts + student_posts）の和になる。学生投稿が増えるほど Zero-context の発火頻度は下がる方向で、これは SECI モデルの継承サイクルによる自然な情報蓄積として期待する挙動である（詳細は `docs/06_ai_spec.md §5.3.2`）。
+
 ## 8. ロギング用会話ログ（任意）
 
 `data/logs/conversations/YYYY-MM-DD.jsonl` に、以下形式で JSONL 追記（1 行 1 メッセージ）。
@@ -603,3 +659,4 @@ def _first_of_prev_month(now_jst: datetime) -> datetime:
 | 2026-07-05 | ランタイム JSON を `.gitignore` 除外に統一、atomic write の実装例を追加、コード例のパス指定と import を実装と一致させた | kmch4n |
 | 2026-07-06 | §4.10 session_activities.json スキーマと reference_type enum を追加、ファイル配置ツリーに session_activities.json / demo_profiles.json を反映 | kmch4n |
 | 2026-07-06 | Day 3 家族ループ用: §2 ツリーに monthly_report_state.json、§4.3 に post_id 採番方式と並行性、§4.4 に衝突チェック 5 回リトライと再発行 invalidate の pseudo コード、§4.11 monthly_report_state.json スキーマ新設、§7 に月境界判定ヘルパーと share_with_parent 不変条件 | kmch4n |
+| 2026-07-06 | T4.10 学生投稿継承の docs-first: §4.3 posts.json に匿名化継承ポリシーと 5-field allow-list、§8「経験投稿の他学生への継承」を新設（匿名化アクセサ list_all_for_context と Zero-context 影響） | kmch4n |

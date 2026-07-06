@@ -433,6 +433,36 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T4.8 Day 4 締めのコミット・プッシュ
 
+### T4.10 学生投稿を生活相談 context に組み込む（SECI モデル継承）
+
+**目的**: `docs/06_ai_spec.md §4.2` および `docs/05_data_model.md §8` の docs-first で確定した「学生の経験投稿を後の学生の生活相談 Gemini プロンプトに匿名化して継承する」ポリシーを実装する。SECI モデルの「形式知化 → 継承」サイクルをコードで体現。
+
+**成果物**:
+
+- `src/services/posts.py::list_all_for_context() -> list[dict]`（匿名化アクセサ、5-field allow-list を実装）
+- `src/services/context_search.py`:
+  - `ContextSearchResult` に `student_posts: list[dict]` を追加、`total_hits` を 4 コレクションの合計に更新
+  - `find_relevant_context` で `posts.list_all_for_context()` を対象に rank
+- `src/services/prompts.py`:
+  - `build_life_consultation_prompt` に `student_posts` / `student_posts_hits` を渡すブロック追加
+  - System prompt の情報源記述を更新（06_ai_spec §3.1 と同期）
+  - 匿名引用ルール「同じマンションの先輩の投稿」を明記
+- `src/services/gemini.py::answer_life_question`:
+  - 呼び出しに `student_posts` を渡す
+- `src/handlers/student.py::handle_life_consultation`:
+  - journald に `student_posts_hits` を追記
+
+**完了基準**:
+
+- 学生 A が `tips` カテゴリで投稿 → 別セッションから学生 A（or 別学生）が関連キーワードで生活相談 → Gemini 応答に投稿内容が反映される
+- Zero-context 判定が学生投稿を含めた `total_hits == 0` で決定される
+- 匿名化ポリシー: `line_user_id` / `post_id` / `share_with_parent` / プロフィール情報が Gemini プロンプトの本文中に登場しない
+- 既存の `share_with_parent` 月次サマリー用途は無変更（回帰なし）
+
+**推定**: 1〜1.5 時間
+
+**Day 割当**: Day 4 に組み込む。
+
 ### T4.9 Post-hoc 正規表現ハルシネーション検出
 
 **目的**: `docs/06_ai_spec.md §5.2` の post-hoc チェックを実装、Gemini 応答に含まれる捏造固有情報を検出・除去する。
@@ -507,3 +537,4 @@ Day 1
 | 2026-07-06 | T2.5 に Zero-context 未実装の注記、T2.hallu と T4.9 を新設（ハルシネーション対策のため） | kmch4n |
 | 2026-07-06 | T4.1 を T4.1a（Flex デザイン調整）と T4.1b（Sender switch 実装）に分割、タスク依存グラフと縮退順序を同期 | kmch4n |
 | 2026-07-06 | Day 3 タスク詳細化: T3.0 docs 先行更新 & init_data 拡張を新設、T3.1〜T3.4 の成果物・完了基準を家族ループ仕様（招待コード再発行 invalidate / 5 回失敗リセット / 6 ステップ経験投稿 / Pull 主軸月次レポート）に合わせて拡張、T3.4-b を月次 Push スケジューラとして分離、依存グラフを同期 | kmch4n |
+| 2026-07-06 | T4.10 を新設: 学生投稿を生活相談 Gemini context に匿名化継承する SECI モデル体現タスク（成果物 posts.list_all_for_context / context_search 拡張 / prompts 更新 / gemini 呼び出し） | kmch4n |
