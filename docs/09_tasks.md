@@ -215,16 +215,38 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ## 5. Day 3: 家族ループ
 
+### T3.0 docs 先行更新 & state ファイル初期化
+
+**目的**: docs-first 原則に従い、Day 3 の仕様（招待コード再発行、月次 Push 併用、経験投稿 6 ステップ、予約語ルーティング、暫定 sender 運用）を実装前に docs へ落とし込む。`monthly_report_state.json` の空スケルトンも用意する。
+
+**成果物**:
+- `docs/04_functional_spec.md` §3.3 / §3.5 / §4.5 / §4.6 / §5.2 / §5.3 / §7 更新
+- `docs/05_data_model.md` §2 / §4.3 / §4.4 / §4.11（新設） / §7 更新
+- `docs/08_demo_scenario.md` に Pull 主軸のデモ手順、`--month` オーバーライドによる Push 手動再送手順、キャンセル・予約語割り込み確認
+- `docs/09_tasks.md` の本ファイル自身
+- `scripts/init_data.py` に `monthly_report_state.json` 初期化を追加
+- `data/monthly_report_state.json` は `.gitignore` 済みだが手動で `{"last_batch": null}` を投入
+
+**完了基準**: docs を読んだだけで Day 3 の全実装が着手できる粒度、`init_data.py` を空 `data/` で走らせて 7 ファイルが生成される
+
+**推定**: 1 時間
+
 ### T3.1 招待コード実装
 
 **目的**: FR-S7 の実装
 
 **成果物**:
-- `src/services/invitations.py`
-- `src/handlers/student.py` に招待コード発行フロー
+- `src/services/invitations.py`（`generate_code` / `issue_code` / `find_active` / `consume` / `is_expired`）
+- `src/handlers/student.py` に招待コード発行フロー（`start_invitation_flow`）
+- `src/handlers/postback.py` の `menu:invite` / `invite:regenerate` 配線
+- `src/handlers/message.py` の `INVITE_COMMANDS` 予約語
 - `src/templates/flex/invitation_code.py`
+- `src/templates/quick_reply.py` に `invitation_menu_quick_reply`
 
-**完了基準**: 学生役で 6 桁コードが発行される、`data/invitations.json` に保存される
+**完了基準**:
+- 学生役で 6 桁コードが発行され、`data/invitations.json` に保存される
+- 再発行で前コードが即無効化される（`used_at`, `used_by_parent_id="__revoked__"`）
+- 発行完了応答に main menu QR + 「メニューから選択してください」の誘導文が含まれ、続く自由テキストで Gemini が誤起動しない
 
 **推定**: 1.5 時間
 
@@ -233,11 +255,17 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 **目的**: FR-P2 の実装
 
 **成果物**:
-- `src/handlers/parent.py` にコード入力フロー
-- `data/parent_links.json` への保存
-- 学生への push 通知
+- `src/services/parent_links.py`（`link` / `list_students_for_parent` / `list_parents_for_student` / `list_all_active_pairs`）
+- `src/handlers/parent.py`（`start_link_flow` / `handle_link_text` / `handle_link_postback` / `is_in_link_flow`）
+- `src/handlers/__init__.py` に `parent` import 追加
+- `src/handlers/postback.py` の `menu:link_student` / `link:*` 配線
+- `src/handlers/message.py` の `LINK_COMMANDS` 予約語 + `is_in_link_flow` セッションルート
+- `src/services/line_reply.push_text` で学生側へ連携完了通知（sender 未指定、§3.5 暫定運用）
 
-**完了基準**: 保護者役でコード入力 → 連携完了、学生側に通知が届く
+**完了基準**:
+- 保護者役でコード入力 → 連携完了、学生側に push 通知が届く
+- 同一 (parent, student) の重複紐付けは冪等（`active=true` のまま）
+- エラー 4 種（`not_found` / `expired` / `used` / `self_link`）で分岐、5 回連続失敗で session 全リセット + welcome QR
 
 **推定**: 2 時間
 
@@ -246,23 +274,56 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 **目的**: FR-S6 の実装
 
 **成果物**:
-- `src/handlers/student.py` に投稿フロー
-- `data/posts.json` への追加
+- `src/services/posts.py`（`add_post` / `_next_post_id` / `list_current_month_shared` / `list_month_shared`）
+- `src/handlers/student.py` に投稿フロー 6 ステップ（`start_post_flow` / `handle_post_text` / `handle_post_postback` / `is_in_post_flow`）
+- `src/handlers/postback.py` の `menu:post` / `post:*` 配線
+- `src/handlers/message.py` の `POST_COMMANDS` 予約語 + `is_in_post_flow` セッションルート
+- `src/templates/quick_reply.py` に `post_category_quick_reply` / `post_share_parent_quick_reply` / `post_confirm_quick_reply`
 
-**完了基準**: 学生役で対話形式に投稿できる、`share_with_parent` フラグ制御が動く
+**完了基準**:
+- 6 ステップ対話フローが完走し `data/posts.json` に追加される
+- キャンセル発話で全リセット + main menu QR
+- `area` は自由入力（`なし`/`無し`/`skip`/空文字は null 正規化）
+- `share_with_parent` フラグが Quick Reply の選択通り保存される
 
 **推定**: 2 時間
 
-### T3.4 月次サマリー実装
+### T3.4 月次サマリー Pull 実装
 
-**目的**: FR-P3 の実装
+**目的**: FR-P3 の Pull パス（保護者トリガー）実装
 
 **成果物**:
-- `src/services/monthly_report.py`
-- `src/handlers/parent.py` に「今月のレポート」
-- `src/templates/flex/monthly_report.py`
+- `src/services/monthly_report.py`（`build_current_month_report` / `_first_of_this_month` / `_first_of_prev_month` / `CATEGORY_EMOJI` 定数）
+- `src/handlers/parent.py` に `handle_monthly_report`
+- `src/handlers/postback.py` の `menu:monthly_report` 配線
+- `src/handlers/message.py` の `MONTHLY_COMMANDS` 予約語
+- `src/templates/flex/monthly_report.py`（単一 bubble、最大 5 件、「メッセージを送る」ボタンなし）
 
-**完了基準**: 保護者役で「今月のレポート」を選ぶと Flex Message で学生の頑張りが表示される
+**完了基準**:
+- 保護者役で「今月のレポート」を選ぶと当月 `share_with_parent=true` 投稿が Flex Message で表示される
+- 未連携の保護者は誘導テキスト + parent QR に流れる
+- 連携複数学生の場合は先頭を reply + 残りを push
+- 0 件時はテキスト定型 + parent QR
+
+**推定**: 2 時間
+
+### T3.4-b 月次サマリー Push スケジューラ実装
+
+**目的**: FR-P3 の Push パス（毎月自動）実装。Pull と同じ Flex ロジックを流用し、systemd timer で駆動する。
+
+**成果物**:
+- `src/services/monthly_report.py` の拡張（`build_previous_month_report` / `push_previous_month_to_all(now_jst, target_year_month, force)`）
+- `scripts/push_monthly_reports.py`（`argparse` で `--month YYYY-MM` / `--now ISO` / `--force`、journald 構造化ログ）
+- `data/monthly_report_state.json` の read/write ロジック（二重実行防止）
+- `deploy/ai_house_mother_monthly.service`（Type=oneshot）
+- `deploy/ai_house_mother_monthly.timer`（`OnCalendar=*-*-01 09:00:00 Asia/Tokyo`, `Persistent=true`）
+
+**完了基準**:
+- `python scripts/push_monthly_reports.py --now "2026-08-01T00:01:00+09:00"` で前月分の Flex が連携保護者に届く
+- 前月 0 件の (parent, student) は送信スキップ（無音、`counters.empty++`）
+- LINE ブロック等の per-parent エラーは catch し `counters.errors++` して継続
+- 同一 `target_year_month` の記録が既にあれば skip（`--force` で上書き）
+- `deploy/*.timer` を systemd に登録すると `systemctl list-timers` に表示される
 
 **推定**: 2 時間
 
@@ -408,9 +469,9 @@ T2.1 ┐
 T1.6 ┼──▶ T2.2 ─▶ (T2.4 と T2.5 は並行可) ─▶ T2.6
 T2.3 ┘
 
-T2.6 ─▶ T3.1 ─▶ T3.2 ┐
-                     ├─▶ T3.4 ─▶ T3.5
-        T2.5 ─▶ T3.3 ┘
+T2.6 ─▶ T3.0 ─▶ T3.1 ─▶ T3.2 ┐
+                              ├─▶ T3.4 ─▶ T3.4-b ─▶ T3.5
+              T2.5 ─▶ T3.3 ───┘
 
 T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
 ```
@@ -445,3 +506,4 @@ Day 1
 | 2026-07-05 | 初版作成 | kmch4n |
 | 2026-07-06 | T2.5 に Zero-context 未実装の注記、T2.hallu と T4.9 を新設（ハルシネーション対策のため） | kmch4n |
 | 2026-07-06 | T4.1 を T4.1a（Flex デザイン調整）と T4.1b（Sender switch 実装）に分割、タスク依存グラフと縮退順序を同期 | kmch4n |
+| 2026-07-06 | Day 3 タスク詳細化: T3.0 docs 先行更新 & init_data 拡張を新設、T3.1〜T3.4 の成果物・完了基準を家族ループ仕様（招待コード再発行 invalidate / 5 回失敗リセット / 6 ステップ経験投稿 / Pull 主軸月次レポート）に合わせて拡張、T3.4-b を月次 Push スケジューラとして分離、依存グラフを同期 | kmch4n |

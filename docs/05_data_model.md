@@ -20,6 +20,7 @@ data/
 ├── invitations.json           # 招待コード
 ├── parent_links.json          # 保護者-学生の紐付け
 ├── session_activities.json    # やりたいこと相談の 30 分短期永続化キャッシュ
+├── monthly_report_state.json  # 月次サマリー Push の実行状態（二重実行防止用）
 ├── seed/                      # 手動投入する架空データ
 │   ├── areas.json             # 地域情報
 │   ├── stores.json            # 学生向け店舗
@@ -31,9 +32,9 @@ data/
 ```
 
 - **コミット対象**: `data/seed/*`（デモの再現性を確保）と `data/.gitkeep`/`data/seed/.gitkeep` のみ。
-- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 6 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`）。
+- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 7 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`、`monthly_report_state.json`）。
 - **理由**: デモ直前のリセット容易性を優先する。ランタイム JSON をコミット対象にすると、審査員体験時に生成された LINE user_id が Git 履歴に残る懸念もある。
-- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON が空スキーマで作成される（既存ファイルは上書きしない）。
+- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON 7 種が空スキーマで作成される（既存ファイルは上書きしない）。
 
 ## 3. 並行アクセス
 
@@ -165,9 +166,17 @@ def save_json(relative_path: str, data: Any) -> None:
 | `category` | string | `event` \| `volunteer` \| `store` \| `medical` \| `tips` \| `other` |
 | `title` | string | タイトル（最大 40 文字） |
 | `body` | string | 本文（最大 500 文字） |
-| `area` | string \| null | 地名・店名等 |
-| `share_with_parent` | boolean | 保護者への共有可否 |
+| `area` | string \| null | 地名・店名等（自由入力、`なし`/`無し`/`skip`/空文字は null に正規化） |
+| `share_with_parent` | boolean | 保護者への共有可否（月次サマリーの最重要フィルタ） |
 | `created_at` | string | 投稿日時 |
+
+**`post_id` の採番方式**:
+
+`src/services/posts.py::_next_post_id` は「`data/posts.json` を毎回 load → `posts[].post_id` の数値部（`int(post_id[1:])`）を全走査 → max + 1」パターンで採番する。O(n) だが MVP スコープ（投稿件数 100 件未満想定）では問題ない。
+
+**並行採番の安全性**:
+
+MVP 期間は uvicorn を `--workers 1` で起動しているため、リクエストは in-process でシリアライズされる。加えて `save_json` は `LOCK_EX` で書き込みロックを取るので、最悪でも `load → append → save` サイクルが原子的に完了する。ワーカー数を増やす場合はプロセス間 race が発生し得るので、Redis などの外部採番機構への切替が必要（`08_demo_scenario.md` 想定範囲外）。
 
 ### 4.4 invitations.json
 
@@ -191,12 +200,47 @@ def save_json(relative_path: str, data: Any) -> None:
 **フィールド**:
 | フィールド | 型 | 説明 |
 | --- | --- | --- |
-| `code` | string | 6 桁英数字（`I`, `O`, `0`, `1` 除外） |
+| `code` | string | 6 桁英数字（`I`, `O`, `0`, `1` 除外、`ABCDEFGHJKLMNPQRSTUVWXYZ23456789` 32 文字集合） |
 | `student_user_id` | string | 発行した学生 |
 | `created_at` | string | 発行日時 |
 | `expires_at` | string | 有効期限（発行から 24 時間） |
 | `used_at` | string \| null | 使用日時（未使用なら null） |
-| `used_by_parent_id` | string \| null | 使用した保護者 userId |
+| `used_by_parent_id` | string \| null | 使用した保護者 userId、または `"__revoked__"`（再発行で invalidate されたもの） |
+
+**衝突チェック**:
+
+`_generate_code()` は `secrets.choice` で 6 文字を生成した後、`find_active(code)` で既存 pending レコードと衝突しないかを pre-check する。衝突時は最大 5 回リトライし、5 回とも衝突なら `RuntimeError` を上げる（32^6 ≈ 10 億通りあるため実務上ほぼ発生しない）。
+
+**再発行時の invalidate（Day 3 で確定）**:
+
+同一学生が既に発行済みの pending コード（`used_at IS NULL` かつ未期限切れ）は、`issue_code` の先頭で一括で `used_at=now`, `used_by_parent_id="__revoked__"` にマークして無効化する。同時有効なコードは常に 1 個という不変条件を守る。
+
+```python
+# services/invitations.py::issue_code の pseudo コード
+def issue_code(student_user_id: str) -> dict[str, Any]:
+    data = load_json(_FILE, default=_EMPTY)
+    now = _now_iso()
+    # 1) prior pending を revoke
+    for inv in data["invitations"]:
+        if (inv["student_user_id"] == student_user_id
+                and inv["used_at"] is None
+                and not is_expired(inv["expires_at"])):
+            inv["used_at"] = now
+            inv["used_by_parent_id"] = REVOKED_SENTINEL
+    # 2) 新規発行（衝突チェック 5 回リトライ）
+    code = _generate_unique_code(data["invitations"])
+    record = {
+        "code": code,
+        "student_user_id": student_user_id,
+        "created_at": now,
+        "expires_at": _hours_later_iso(24),
+        "used_at": None,
+        "used_by_parent_id": None,
+    }
+    data["invitations"].append(record)
+    save_json(_FILE, data)
+    return record
+```
 
 ### 4.5 parent_links.json
 
@@ -378,6 +422,39 @@ def save_json(relative_path: str, data: Any) -> None:
 
 新しい値を追加する場合は、`docs/06_ai_spec.md §4.1` のスキーマと `src/services/gemini.py::_ACTIVITY_JSON_SCHEMA` の enum も同時に更新すること。
 
+### 4.11 monthly_report_state.json（ランタイム、月次 Push の実行状態）
+
+月次サマリー Push（`scripts/push_monthly_reports.py` → `monthly_report.push_previous_month_to_all`）の二重実行防止と実行履歴の保持のために用いる。
+
+```json
+{
+    "last_batch": {
+        "batch_id": "MRB-2026-08-01T09:00:00+09:00",
+        "target_year_month": "2026-07",
+        "executed_at": "2026-08-01T09:00:12+09:00",
+        "counters": {"sent": 3, "empty": 1, "errors": 0}
+    }
+}
+```
+
+**フィールド**:
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `last_batch` | object \| null | 最後に実行された batch の記録（初期化直後は null） |
+| `last_batch.batch_id` | string | `"MRB-" + executed_at ISO`。ログの相関 ID にも使う |
+| `last_batch.target_year_month` | string | 集計対象年月（`"YYYY-MM"`） |
+| `last_batch.executed_at` | string | 実際の実行完了時刻（ISO 8601 + tz） |
+| `last_batch.counters` | object | `{"sent": int, "empty": int, "errors": int}` |
+
+**二重実行防止**:
+
+`push_previous_month_to_all(target_year_month=T)` は実行前に `last_batch.target_year_month == T` かをチェックし、一致すれば skip（戻り値の `skipped_batch=True`）。`--force` フラグで上書き実行可能（デモ・再送用）。
+
+**初期化**:
+
+`scripts/init_data.py` が `{"last_batch": null}` の空スケルトンを作成する。既存ファイルは上書きしない。
+
 ## 5. 架空学生プロフィール
 
 デモ用に 3〜5 名分の架空学生プロフィールを `data/seed/demo_profiles.json` として用意（デモ以外では使わない）。
@@ -473,10 +550,37 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
 
 保護者向け「今月のレポート」を生成する際は、以下を行う。
 
-1. `parent_links.json` から連携先学生を特定
-2. `posts.json` から `share_with_parent=true` かつ当月の投稿を抽出
-3. 最大 5 件を Flex Message カルーセル or リストで表示
+1. `parent_links.json` から連携先学生を特定（`list_students_for_parent` / `list_all_active_pairs`）
+2. `posts.json` から `share_with_parent=true` かつ対象月の投稿を抽出（`posts.list_month_shared`）
+3. 最大 5 件を **単一 Flex バブル**にリスト表示（カルーセルではない）
 4. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / ✨ other）を付ける
+
+### 7.1 月境界判定ヘルパー
+
+`services/monthly_report.py` に以下のヘルパーを実装し、Pull（当月）と Push（前月）で共有する。JST 固定。
+
+```python
+JST = ZoneInfo("Asia/Tokyo")
+
+def _first_of_this_month(now_jst: datetime) -> datetime:
+    """当月 1 日 00:00 JST を返す。"""
+    return now_jst.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+def _first_of_prev_month(now_jst: datetime) -> datetime:
+    """前月 1 日 00:00 JST を返す。"""
+    first_this = _first_of_this_month(now_jst)
+    # 前月末日を経由して前月 1 日を算出
+    last_prev = first_this - timedelta(seconds=1)
+    return last_prev.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+```
+
+- **Pull（当月）**: `start = _first_of_this_month(now_jst)`、`end = now_jst`。
+- **Push（前月）**: `start = _first_of_prev_month(now_jst)`、`end = _first_of_this_month(now_jst)`（半開区間 `[start, end)`）。
+- `target_year_month` オーバーライド指定時（`--month 2026-07` 等）は、そのまま `start = YYYY-MM-01 00:00 JST`、`end = 翌月 1 日 00:00 JST` を組み立てる。
+
+### 7.2 `share_with_parent` フィルタの不変条件
+
+`list_month_shared` は必ず `share_with_parent == True` を filter に含める。この 1 行が漏れると `false` 指定の投稿が保護者に露出する致命的なプライバシー事故になるため、実装・レビューで最重要不変条件として扱う（`04_functional_spec.md §4.5` 参照）。
 
 ## 8. ロギング用会話ログ（任意）
 
@@ -498,3 +602,4 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
 | 2026-07-05 | 初版作成 | kmch4n |
 | 2026-07-05 | ランタイム JSON を `.gitignore` 除外に統一、atomic write の実装例を追加、コード例のパス指定と import を実装と一致させた | kmch4n |
 | 2026-07-06 | §4.10 session_activities.json スキーマと reference_type enum を追加、ファイル配置ツリーに session_activities.json / demo_profiles.json を反映 | kmch4n |
+| 2026-07-06 | Day 3 家族ループ用: §2 ツリーに monthly_report_state.json、§4.3 に post_id 採番方式と並行性、§4.4 に衝突チェック 5 回リトライと再発行 invalidate の pseudo コード、§4.11 monthly_report_state.json スキーマ新設、§7 に月境界判定ヘルパーと share_with_parent 不変条件 | kmch4n |

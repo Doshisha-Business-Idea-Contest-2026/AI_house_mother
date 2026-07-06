@@ -152,9 +152,22 @@
 **発表者の話**: 「保護者はどう見守るか。」
 
 **操作（スマホB）**:
-1. 「📊 今月のレポート」
-2. Bot が Flex Message で春樹の頑張ったことを表示
+1. 「📊 今月のレポート」（Pull 主軸）
+2. Bot が Flex Message で当月の頑張ったことを表示
 3. 発表者が画面を見せながら「会話内容や生活相談は共有されず、学生本人が『共有したい』と選んだ頑張りだけが届きます」と説明
+
+**発表者の補足**: 「実運用では毎月 1 日の朝 9 時に、自動でこのレポートが保護者へ配信されます。今回のデモではその場で保護者が Pull した形をお見せしていますが、Push は systemd timer で常時走っています。」
+
+**Push デモを見せる場合の手動実行手順**（任意、時間に余裕がある場合）:
+
+```bash
+# 前月 (2026-06) 分の Push を全連携保護者に強制送信
+python scripts/push_monthly_reports.py --month 2026-06 --force
+```
+
+- `--force` を付けると `data/monthly_report_state.json` の記録があっても再送される。
+- `--now` を指定すると架空の実行時刻を渡せる（月境界判定の再現テスト用）。
+- デモ当日は Pull を主軸で見せ、Push は口頭説明のみで十分。
 
 ## 5. 差別化ポイントの強調
 
@@ -261,9 +274,21 @@
 - [ ] `data/invitations.json` を空に
 - [ ] `data/parent_links.json` を空に
 - [ ] `data/posts.json` の該当 user_id をリセット
+- [ ] `data/monthly_report_state.json` を `{"last_batch": null}` にリセット
+- [ ] `systemctl list-timers ai_house_mother_monthly.timer` が active
 - [ ] QR コードが正しく表示・スキャン可能
 - [ ] スクリーンショット保険スライドの用意
 - [ ] 事前録画動画のロード確認
+
+### 9.1 追加確認: キャンセル・予約語割り込み
+
+デモ通し前に以下を実機で確認する（当日の予期せぬ質問操作でも壊れないため）:
+
+- [ ] 経験投稿 `post.title` 入力中に `キャンセル` → session 全リセット + main menu QR
+- [ ] 経験投稿 `post.body` 入力中に `メインメニュー` → session 全リセット + main menu QR
+- [ ] 保護者連携 `link.code` 入力中に 5 回連続で無効コードを送る → session 全リセット + welcome QR
+- [ ] 招待コード発行完了直後に自由テキスト → 生活相談ではなくメニュー案内が返る
+- [ ] 保護者役で `📊 今月のレポート` → Pull で当月投稿が Flex 表示（`share_with_parent=false` は含まれない）
 
 ## 10. 変更履歴
 
@@ -271,3 +296,4 @@
 | --- | --- | --- |
 | 2026-07-05 | 初版作成 | kmch4n |
 | 2026-07-06 | Q4.5 ハルシネーション対策を追加、Zero-context 応答を seed 外質問の補足デモとして紹介 | kmch4n |
+| 2026-07-06 | シーン 7 に月次 Push の Pull 主軸方針と `--month/--force` による手動再実行手順を追記、§9 に monthly_report_state.json リセット・timer active 確認・キャンセル/予約語割り込みのデモ前チェックリスト §9.1 を追加 | kmch4n |
