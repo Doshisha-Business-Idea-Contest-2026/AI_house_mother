@@ -431,6 +431,7 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
         push_text(
             user_id,
             "うまく提案を思いつけませんでした。少し時間を空けてもう一度お試しください🙇",
+            quick_reply=main_menu_quick_reply("student"),
             sender="friendly",
         )
         return

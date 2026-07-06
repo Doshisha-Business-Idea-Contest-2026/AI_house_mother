@@ -20,6 +20,7 @@ from src.services import parent_links, posts
 from src.services.line_reply import push_flex
 from src.services.storage import load_json, save_json
 from src.templates.flex.monthly_report import build_monthly_report_bubble
+from src.templates.quick_reply import main_menu_quick_reply
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +256,7 @@ def push_previous_month_to_all(
                 parent_user_id,
                 alt_text=_alt_text(report),
                 contents=bubble,
+                quick_reply=main_menu_quick_reply("parent"),
                 raise_on_error=True,
                 sender="notify",
             )

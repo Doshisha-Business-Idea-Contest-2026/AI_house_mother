@@ -135,9 +135,16 @@ def handle_link_text(event: MessageEvent) -> None:
     parent_links.link(user_id, student_id)
     session.clear_state(user_id)
 
-    # Notify the student and confirm to the parent.
+    # Notify the student and confirm to the parent. The push carries a
+    # student-side main-menu QR because a bare notify would strand the
+    # student without any next-action affordance (docs/04 §3.4).
     try:
-        push_text(student_id, _LINK_COMPLETED_STUDENT, sender="notify")
+        push_text(
+            student_id,
+            _LINK_COMPLETED_STUDENT,
+            quick_reply=main_menu_quick_reply("student"),
+            sender="notify",
+        )
     except Exception:
         logger.exception("push_text to student failed")
 
@@ -239,6 +246,7 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
                 f"📊 {report['student_display']}の今月（{report['year_month']}）"
                 "はまだ頑張ったことの記録がありません。"
             ),
+            quick_reply=main_menu_quick_reply("parent"),
             sender="notify",
         )
         return
@@ -252,7 +260,11 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
         f" 頑張ったこと {len(report['posts'])} 件"
     )
     push_flex(
-        parent_user_id, alt_text=alt_text, contents=bubble, sender="notify"
+        parent_user_id,
+        alt_text=alt_text,
+        contents=bubble,
+        quick_reply=main_menu_quick_reply("parent"),
+        sender="notify",
     )
 
 
