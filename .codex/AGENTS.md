@@ -47,8 +47,9 @@
 
 ### ブランチ運用
 
-- MVP 期間（〜 2026-07-08 頃）: `main` 直接コミット OK
-- MVP 完了後: `feature/xxx`, `fix/xxx` などのブランチを切る
+- `main` 直接コミットは禁止。必ずブランチを切って作業し、PR 経由で merge する。
+- ブランチ命名: `feature/xxx` / `fix/xxx` / `refactor/xxx` / `docs/xxx` / `chore/xxx`。
+- 1 人開発中はセルフレビューで自分で merge してよい（PR は必ず経由）。
 
 詳細は `@rules/git_workflow.md`。
 
