@@ -9,10 +9,24 @@ Routing order (see the reserved-word precedence table in
    (profile flow / life consultation / experience posting / parent link).
 3. Otherwise, short text falls back to the main menu prompt while long
    text is treated as a life-consultation question.
+
+Non-text messages (sticker / image / video / audio / file / location)
+are routed via :func:`handle_non_text` per ``docs/04_functional_spec.md``
+§3.4-b so the user never loses the Quick Reply thread after tapping a
+sticker by accident.
 """
 import logging
 
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import (
+    AudioMessageContent,
+    FileMessageContent,
+    ImageMessageContent,
+    LocationMessageContent,
+    MessageEvent,
+    StickerMessageContent,
+    TextMessageContent,
+    VideoMessageContent,
+)
 
 from src.config import handler
 from src.handlers import parent, student
@@ -20,6 +34,7 @@ from src.services import session, users
 from src.services.line_reply import reply_flex, reply_text
 from src.templates.flex.welcome import build_welcome_message
 from src.templates.quick_reply import (
+    cancel_quick_reply,
     main_menu_quick_reply,
     profile_start_quick_reply,
 )
@@ -226,6 +241,75 @@ def handle_text(event: MessageEvent) -> None:
         event,
         user_id,
         "もう少し詳しく教えてください。もしくは下のメニューから選んでください👇",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Non-text fallback (§3.4-b): keep the Quick Reply thread alive when the
+# user sends a sticker / image / video / audio / file / location. Stacking
+# @handler.add for each type registers the same function in the SDK's
+# per-type dispatch table.
+# ---------------------------------------------------------------------------
+
+
+@handler.add(MessageEvent, message=StickerMessageContent)
+@handler.add(MessageEvent, message=ImageMessageContent)
+@handler.add(MessageEvent, message=VideoMessageContent)
+@handler.add(MessageEvent, message=AudioMessageContent)
+@handler.add(MessageEvent, message=FileMessageContent)
+@handler.add(MessageEvent, message=LocationMessageContent)
+def handle_non_text(event: MessageEvent) -> None:
+    """Reply with a role/session-aware nudge so no non-text goes silent."""
+    user_id = event.source.user_id
+    kind = type(event.message).__name__.replace("MessageContent", "").lower()
+    logger.info("Non-text from %s: kind=%s", user_id[:8] if user_id else "?", kind)
+
+    state = session.get_state(user_id)
+
+    if student.is_in_life_flow(state):
+        student.reprompt_life_non_text(event)
+        return
+
+    if (
+        student.is_in_profile_flow(state)
+        or student.is_in_post_flow(state)
+        or parent.is_in_link_flow(state)
+    ):
+        reply_text(
+            event.reply_token,
+            "テキストで送ってください。中断する場合は「キャンセル」と送ってください。",
+            quick_reply=cancel_quick_reply(),
+            sender="system",
+        )
+        return
+
+    role = users.get_role(user_id)
+    if role == "student":
+        reply_text(
+            event.reply_token,
+            "メッセージありがとうございます😊\n下のメニューから使いたい機能を選んでください👇",
+            quick_reply=main_menu_quick_reply("student"),
+            sender="friendly",
+        )
+        return
+    if role == "parent":
+        reply_text(
+            event.reply_token,
+            "メッセージありがとうございます😊\n下のメニューから使いたい機能を選んでください👇",
+            quick_reply=main_menu_quick_reply("parent"),
+            sender="friendly",
+        )
+        return
+
+    alt_text, contents, qr = build_welcome_message(
+        prefix="メッセージありがとうございます。まずは役割を教えてください。"
+    )
+    reply_flex(
+        event.reply_token,
+        alt_text=alt_text,
+        contents=contents,
+        quick_reply=qr,
+        sender="system",
     )
 
 

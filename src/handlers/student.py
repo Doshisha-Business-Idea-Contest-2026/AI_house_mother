@@ -556,6 +556,20 @@ def start_life_consultation(event: MessageEvent | PostbackEvent) -> None:
     )
 
 
+def reprompt_life_non_text(event: MessageEvent) -> None:
+    """Nudge a life-flow user who sent a sticker/image/etc. back to text.
+
+    Called from the router in ``handlers/message.py::handle_non_text``
+    so ``_life_quick_reply`` stays module-private.
+    """
+    reply_text(
+        event.reply_token,
+        "テキストで質問を送ってください。中断する場合は「🚫 相談を終える」を押してね。",
+        quick_reply=_life_quick_reply(),
+        sender="friendly",
+    )
+
+
 def handle_life_consultation(event: MessageEvent) -> None:
     """Process a life-consultation message and reply.
 
