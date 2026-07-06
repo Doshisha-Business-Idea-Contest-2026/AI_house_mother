@@ -92,6 +92,14 @@ def handle_postback(event: PostbackEvent) -> None:
         _handle_invite(event, data)
         return
 
+    if data.startswith("post:"):
+        role = users.get_role(user_id)
+        if role != "student":
+            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            return
+        student.handle_post_postback(event, data)
+        return
+
     if data.startswith("link:"):
         role = users.get_role(user_id)
         if role != "parent":
@@ -175,9 +183,11 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "post":
-        _reply_placeholder(
-            event, role, "✏️ 経験投稿機能は Day 3 で実装予定です。"
-        )
+        if role != "student":
+            welcome_text, qr = build_welcome_message()
+            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            return
+        student.start_post_flow(event)
         return
 
     if action == "invite":

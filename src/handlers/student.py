@@ -25,6 +25,7 @@ from src.services import (
     context_search,
     gemini,
     invitations,
+    posts,
     profiles,
     prompts,
     session,
@@ -35,12 +36,18 @@ from src.templates.flex.activity_carousel import build_activity_carousel
 from src.templates.flex.invitation_code import build_invitation_bubble
 from src.templates.quick_reply import (
     INTEREST_TAGS,
+    POST_CATEGORIES,
+    cancel_quick_reply,
     confirm_quick_reply,
     effort_quick_reply,
     grade_quick_reply,
     interests_quick_reply,
     invitation_menu_quick_reply,
     main_menu_quick_reply,
+    post_area_quick_reply,
+    post_category_quick_reply,
+    post_confirm_quick_reply,
+    post_share_parent_quick_reply,
     profile_start_quick_reply,
 )
 
@@ -601,6 +608,256 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Experience posting (FR-S6, 6-step dialog)
+# ---------------------------------------------------------------------------
+
+
+_POST_CATEGORY_LABELS: dict[str, str] = {value: label for label, value in POST_CATEGORIES}
+_POST_STEP_ORDER: tuple[str, ...] = (
+    "post.category",
+    "post.title",
+    "post.body",
+    "post.area",
+    "post.share_parent",
+    "post.confirm",
+)
+
+
+def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
+    """Kick off the 6-step experience posting dialog for a student."""
+    user_id = event.source.user_id
+    session.set_state(user_id, "post.category")
+    reply_text(
+        event.reply_token,
+        (
+            "✏️ 経験投稿を始めます。\n"
+            "まずはカテゴリを選んでください。\n"
+            "（途中で「キャンセル」と送るとやめられます）"
+        ),
+        quick_reply=post_category_quick_reply(),
+    )
+
+
+def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
+    """Handle free-text input for ``post.title`` / ``post.body`` / ``post.area``."""
+    user_id = event.source.user_id
+    text = event.message.text.strip()
+    step = state["state"]
+
+    if step == "post.title":
+        if not text:
+            reply_text(
+                event.reply_token,
+                "タイトルを 1 文字以上で入力してください。",
+                quick_reply=cancel_quick_reply(),
+            )
+            return
+        title = text[: posts.MAX_TITLE_LEN]
+        _record(user_id, "title", title)
+        session.set_state(user_id, "post.body", **_context_snapshot(user_id))
+        reply_text(
+            event.reply_token,
+            (
+                "📝 内容を詳しく教えてください。\n"
+                f"（{posts.MAX_BODY_LEN} 文字以内、少し長くても大丈夫です）"
+            ),
+            quick_reply=cancel_quick_reply(),
+        )
+        return
+
+    if step == "post.body":
+        if not text:
+            reply_text(
+                event.reply_token,
+                "内容を 1 文字以上で入力してください。",
+                quick_reply=cancel_quick_reply(),
+            )
+            return
+        body = text[: posts.MAX_BODY_LEN]
+        _record(user_id, "body", body)
+        session.set_state(user_id, "post.area", **_context_snapshot(user_id))
+        reply_text(
+            event.reply_token,
+            (
+                "📍 場所や店名を教えてください（例: 下鴨神社、進々堂 京大北門前）。\n"
+                "場所がなければ「なし」または「skip」と送ってください。"
+            ),
+            quick_reply=post_area_quick_reply(),
+        )
+        return
+
+    if step == "post.area":
+        _record(user_id, "area", text)
+        session.set_state(
+            user_id, "post.share_parent", **_context_snapshot(user_id)
+        )
+        reply_text(
+            event.reply_token,
+            (
+                "\U0001F468‍\U0001F469‍\U0001F467 保護者に「頑張ったこと」として共有しますか？\n"
+                "共有しないを選ぶと、この投稿は保護者には届きません。"
+            ),
+            quick_reply=post_share_parent_quick_reply(),
+        )
+        return
+
+    if step in {"post.category", "post.share_parent", "post.confirm"}:
+        # These are Quick Reply / Postback steps; nudge the user.
+        _reprompt_post_step(event, step)
+        return
+
+    logger.warning("Unexpected post step for text input: %s", step)
+
+
+def handle_post_postback(event: PostbackEvent, data: str) -> None:
+    """Handle ``post:*`` postbacks for the experience posting flow."""
+    user_id = event.source.user_id
+    state = session.get_state(user_id)
+
+    if state is None or not state["state"].startswith("post."):
+        reply_text(
+            event.reply_token,
+            "セッションが切れました。もう一度「✏️ 経験を投稿」から始めてください。",
+            quick_reply=main_menu_quick_reply("student"),
+        )
+        return
+
+    if data.startswith("post:category:"):
+        category = data.removeprefix("post:category:")
+        if category not in posts.CATEGORY_VALUES:
+            reply_text(
+                event.reply_token,
+                "そのカテゴリには対応していません。",
+                quick_reply=post_category_quick_reply(),
+            )
+            return
+        _record(user_id, "category", category)
+        session.set_state(user_id, "post.title", **_context_snapshot(user_id))
+        reply_text(
+            event.reply_token,
+            (
+                "📝 短いタイトルを教えてください（例: 下鴨神社の清掃活動に参加）。\n"
+                f"（{posts.MAX_TITLE_LEN} 文字以内）"
+            ),
+            quick_reply=cancel_quick_reply(),
+        )
+        return
+
+    if data.startswith("post:share:"):
+        choice = data.removeprefix("post:share:")
+        if choice not in {"yes", "no"}:
+            reply_text(
+                event.reply_token,
+                "共有の選択肢は「共有する」か「共有しない」です。",
+                quick_reply=post_share_parent_quick_reply(),
+            )
+            return
+        _record(user_id, "share_with_parent", choice == "yes")
+        _send_post_confirmation(event)
+        return
+
+    if data == "post:confirm:yes":
+        _finalize_post(event)
+        return
+
+    if data == "post:confirm:redo":
+        session.clear_state(user_id)
+        start_post_flow(event)
+        return
+
+    logger.warning("Unknown post postback: %s", data)
+
+
+def _reprompt_post_step(event: MessageEvent, step: str) -> None:
+    """Nudge the user to interact with the current post step's Quick Reply."""
+    if step == "post.category":
+        reply_text(
+            event.reply_token,
+            "下のボタンからカテゴリを選んでください。",
+            quick_reply=post_category_quick_reply(),
+        )
+    elif step == "post.share_parent":
+        reply_text(
+            event.reply_token,
+            "下のボタンで「共有する」か「共有しない」を選んでください。",
+            quick_reply=post_share_parent_quick_reply(),
+        )
+    elif step == "post.confirm":
+        reply_text(
+            event.reply_token,
+            "下のボタンで「投稿する」か「やり直す」を選んでください。",
+            quick_reply=post_confirm_quick_reply(),
+        )
+
+
+def _send_post_confirmation(event: PostbackEvent) -> None:
+    """Show the review card summarising the post before final submission."""
+    user_id = event.source.user_id
+    ctx = _context_snapshot(user_id)
+    category_label = _POST_CATEGORY_LABELS.get(
+        ctx.get("category", ""), ctx.get("category", "")
+    )
+    area_raw: str | None = ctx.get("area")
+    area_normalized = posts._normalize_area(area_raw)
+    area_display = area_normalized if area_normalized is not None else "（指定なし）"
+    share = ctx.get("share_with_parent", False)
+    share_label = "共有する" if share else "共有しない"
+    summary = (
+        "内容を確認してください:\n"
+        f"📂 カテゴリ: {category_label}\n"
+        f"📝 タイトル: {ctx.get('title', '')}\n"
+        f"📖 本文: {ctx.get('body', '')}\n"
+        f"📍 場所: {area_display}\n"
+        f"\U0001F468‍\U0001F469‍\U0001F467 保護者共有: {share_label}\n\n"
+        "この内容で投稿しますか？"
+    )
+    session.set_state(user_id, "post.confirm", **ctx)
+    reply_text(event.reply_token, summary, quick_reply=post_confirm_quick_reply())
+
+
+def _finalize_post(event: PostbackEvent) -> None:
+    """Persist the post from session context and confirm to the student."""
+    user_id = event.source.user_id
+    ctx = _context_snapshot(user_id)
+    try:
+        record = posts.add_post(
+            line_user_id=user_id,
+            category=ctx.get("category", "other"),
+            title=ctx.get("title", ""),
+            body=ctx.get("body", ""),
+            area=ctx.get("area"),
+            share_with_parent=bool(ctx.get("share_with_parent", False)),
+        )
+    except ValueError:
+        logger.exception("posts.add_post rejected input")
+        reply_text(
+            event.reply_token,
+            "投稿の保存に失敗しました🙇 もう一度試してみてください。",
+            quick_reply=main_menu_quick_reply("student"),
+        )
+        session.clear_state(user_id)
+        return
+
+    session.clear_state(user_id)
+    share_line = (
+        "保護者に「頑張ったこと」として届きます✨"
+        if record["share_with_parent"]
+        else "この投稿は保護者には共有されません。"
+    )
+    reply_text(
+        event.reply_token,
+        f"投稿を保存しました🎉（{record['post_id']}）\n{share_line}",
+        quick_reply=main_menu_quick_reply("student"),
+    )
+    logger.info(
+        "post_finalized user=%s post_id=%s share=%s",
+        user_id[:8],
+        record["post_id"],
+        record["share_with_parent"],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public helper for the outer router (used by message.py to decide to skip)
 # ---------------------------------------------------------------------------
 
@@ -613,3 +870,8 @@ def is_in_profile_flow(state: dict[str, Any] | None) -> bool:
 def is_in_life_flow(state: dict[str, Any] | None) -> bool:
     """Return ``True`` when the user is in the life-consultation flow."""
     return state is not None and state["state"] == "life.waiting"
+
+
+def is_in_post_flow(state: dict[str, Any] | None) -> bool:
+    """Return ``True`` when the user is in the experience post flow."""
+    return state is not None and state["state"] in _POST_STEP_ORDER

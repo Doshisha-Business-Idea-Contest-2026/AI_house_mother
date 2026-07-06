@@ -135,9 +135,9 @@ def handle_text(event: MessageEvent) -> None:
 
     if text in POST_COMMANDS:
         session.clear_state(user_id)
-        _reply_placeholder(
-            event, user_id, "✏️ 経験投稿機能は Day 3 で実装予定です。"
-        )
+        if not _require_role(event, user_id, "student"):
+            return
+        student.start_post_flow(event)
         return
 
     if text in INVITE_COMMANDS:
@@ -167,6 +167,11 @@ def handle_text(event: MessageEvent) -> None:
     state = session.get_state(user_id)
     if student.is_in_profile_flow(state):
         student.handle_profile_text(event, state)  # type: ignore[arg-type]
+        return
+    if student.is_in_post_flow(state):
+        if not _require_role(event, user_id, "student"):
+            return
+        student.handle_post_text(event, state)  # type: ignore[arg-type]
         return
     if parent.is_in_link_flow(state):
         if not _require_role(event, user_id, "parent"):

@@ -225,6 +225,100 @@ def confirm_quick_reply() -> QuickReply:
 
 
 # ---------------------------------------------------------------------------
+# Experience posting flow (student side)
+# ---------------------------------------------------------------------------
+
+
+POST_CATEGORIES: list[tuple[str, str]] = [
+    ("🏛️ 地域イベント", "event"),
+    ("🧹 ボランティア", "volunteer"),
+    ("🍜 お店・カフェ", "store"),
+    ("🏥 病院・薬局", "medical"),
+    ("📋 手続き・生活の知恵", "tips"),
+    ("✨ その他", "other"),
+]
+
+
+def post_category_quick_reply() -> QuickReply:
+    """Quick Reply listing the 6 post categories + cancel."""
+    items: list[QuickReplyItem] = []
+    for label, value in POST_CATEGORIES:
+        items.append(
+            QuickReplyItem(
+                action=PostbackAction(
+                    label=label,
+                    data=f"post:category:{value}",
+                    display_text=label,
+                )
+            )
+        )
+    items.append(
+        QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル"))
+    )
+    return QuickReply(items=items)
+
+
+def post_area_quick_reply() -> QuickReply:
+    """Quick Reply offering to skip the area step or cancel."""
+    return QuickReply(
+        items=[
+            QuickReplyItem(action=MessageAction(label="なし", text="なし")),
+            QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル")),
+        ]
+    )
+
+
+def post_share_parent_quick_reply() -> QuickReply:
+    """Quick Reply asking whether to share the post with linked parents."""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="\U0001F468‍\U0001F469‍\U0001F467 共有する",
+                    data="post:share:yes",
+                    display_text="\U0001F468‍\U0001F469‍\U0001F467 共有する",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🙅 共有しない",
+                    data="post:share:no",
+                    display_text="🙅 共有しない",
+                )
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
+        ]
+    )
+
+
+def post_confirm_quick_reply() -> QuickReply:
+    """Quick Reply used at the final review step of the post flow."""
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="✅ 投稿する",
+                    data="post:confirm:yes",
+                    display_text="✅ 投稿する",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🔄 やり直す",
+                    data="post:confirm:redo",
+                    display_text="🔄 やり直す",
+                )
+            ),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
 # Invitation flow (student side)
 # ---------------------------------------------------------------------------
 
