@@ -76,8 +76,19 @@ def push_text(
     line_user_id: str,
     text: str,
     quick_reply: Optional[QuickReply] = None,
+    raise_on_error: bool = False,
 ) -> None:
-    """Push a plain text message to ``line_user_id``."""
+    """Push a plain text message to ``line_user_id``.
+
+    Args:
+        line_user_id: Recipient LINE user id.
+        text: Message body.
+        quick_reply: Optional Quick Reply attached to the message.
+        raise_on_error: When ``True`` re-raise any exception raised by
+            the LINE SDK so the caller can count failures. Defaults to
+            ``False`` for the fire-and-forget style used by the
+            interactive handlers.
+    """
     message = TextMessage(text=text)
     if quick_reply is not None:
         message.quick_reply = quick_reply
@@ -89,6 +100,8 @@ def push_text(
             )
     except Exception:
         logger.exception("push_text failed")
+        if raise_on_error:
+            raise
 
 
 def push_flex(
@@ -96,8 +109,20 @@ def push_flex(
     alt_text: str,
     contents: dict,
     quick_reply: Optional[QuickReply] = None,
+    raise_on_error: bool = False,
 ) -> None:
-    """Push a Flex message to ``line_user_id``."""
+    """Push a Flex message to ``line_user_id``.
+
+    Args:
+        line_user_id: Recipient LINE user id.
+        alt_text: Fallback text shown in notifications.
+        contents: Flex message contents (bubble or carousel dict).
+        quick_reply: Optional Quick Reply attached to the message.
+        raise_on_error: When ``True`` re-raise any exception raised by
+            the LINE SDK so the caller can count failures. Defaults to
+            ``False`` for the fire-and-forget style used by the
+            interactive handlers.
+    """
     message = FlexMessage(alt_text=alt_text, contents=FlexContainer.from_dict(contents))
     if quick_reply is not None:
         message.quick_reply = quick_reply
@@ -109,3 +134,5 @@ def push_flex(
             )
     except Exception:
         logger.exception("push_flex failed")
+        if raise_on_error:
+            raise

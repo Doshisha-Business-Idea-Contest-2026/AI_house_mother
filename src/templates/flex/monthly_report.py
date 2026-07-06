@@ -9,10 +9,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.services.monthly_report import CATEGORY_EMOJI
-
 HEADER_COLOR = "#00579C"
 _BODY_PREVIEW_LEN = 60
+
+CATEGORY_EMOJI: dict[str, str] = {
+    "event": "🏛️",
+    "volunteer": "🧹",
+    "store": "🍜",
+    "medical": "🏥",
+    "tips": "📋",
+    "other": "✨",
+}
 
 
 def _shorten(text: str, limit: int = _BODY_PREVIEW_LEN) -> str:
