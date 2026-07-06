@@ -122,6 +122,33 @@
 - ヘルパー関数 `_reply_placeholder(event, user_id, text)` を `src/handlers/message.py` に用意し、複数箇所の重複を減らす
 - 未登録ユーザーは `_reply_placeholder` の代わりに welcome を返す共通処理に流す
 
+### 3.4-b 非テキストメッセージのフォールバック（Day 4 追加）
+
+**問題**: スタンプ・画像・動画・音声・ファイル・位置情報が届いても Bot が完全無応答だと、直前応答に付いていた Quick Reply が UI 上から流れて見えなくなり、ユーザーが次の操作を見失う。
+
+**方針**: 6 種の非テキストメッセージすべてに対して `src/handlers/message.py::handle_non_text` を単一ハンドラとして登録し、session/role に応じて以下のいずれかを返す。
+
+| 状況 | 応答 | Sender |
+| --- | --- | --- |
+| session が active（プロフィール登録・投稿・保護者連携などのフロー中） | 「テキストで送ってください。中断する場合は「キャンセル」と送ってください。」+ `cancel_quick_reply()` | `system` |
+| 生活相談セッション中 | 生活相談用の 2 択 QR（`_life_quick_reply()`）を再提示 + 「テキストで質問を送ってください。」 | `system` |
+| session なし・学生 | 「メッセージありがとうございます😊 メニューから使いたい機能を選んでください。」+ `main_menu_quick_reply("student")` | `friendly` |
+| session なし・保護者 | 同上 + `main_menu_quick_reply("parent")` | `friendly` |
+| 役割未登録（role = None） | welcome Flex を再送（プレフィックス「メッセージありがとうございます。まずは役割を教えてください。」） | `system` |
+
+**登録するイベント**:
+
+`@handler.add(MessageEvent, message=<T>)` を以下 6 種で共通関数に多重登録する。
+
+- `StickerMessageContent`
+- `ImageMessageContent`
+- `VideoMessageContent`
+- `AudioMessageContent`
+- `FileMessageContent`
+- `LocationMessageContent`
+
+**Gemini は呼ばない**: 内容の解釈は不要で、あくまで「次の操作を明示する」ためのフォールバック。呼び出しコストとハルシネーションリスクを避ける。
+
 ### 3.5 送信者アイコン・名前の切替 (Sender switch)
 
 **目的**: 応答のトーン（寮母口調 vs システムメッセージ vs 通知）を送信者名とアイコンで区別し、ユーザーに「今どのモードで話しているか」を視覚的に伝える。
@@ -716,5 +743,6 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
 | 2026-07-06 | Day 4 T4.1b Sender switch を実装完了: §3.5 の暫定 friendly 注記を撤回し、`line_reply` に `sender` 引数と `SENDER_PRESETS` の呼び出し実態、および friendly/system/notify それぞれの現行呼び出し場所を反映 | kmch4n |
 | 2026-07-06 | §4.4 生活相談の情報源に `data/posts.json` を追加、§4.5 経験投稿に「他学生の生活相談 context へ全件匿名化継承」ポリシーを追記（T4.10 の docs-first 更新、SECI モデル体現） | kmch4n |
 | 2026-07-06 | §4.2 プロフィール閲覧仕様を新設: 登録済みユーザーは Flex bubble で自分の情報を表示、未登録は登録誘導に振り分ける（Day 4 UX 改善、`👤 プロフィール` ボタンが即座に上書き入力を要求する挙動を撤廃） | kmch4n |
+| 2026-07-06 | §3.4-b 非テキストメッセージのフォールバック仕様を新設: スタンプ・画像・動画・音声・ファイル・位置情報の 6 種を単一ハンドラで受け、session/role に応じて Quick Reply 付きの誘導を返す（Day 4 UX 改善、無応答による導線消失を撤廃） | kmch4n |
 | 2026-07-06 | §3.6 Loading indicator による中間応答の可視化を新設（Day 4 T4.11 の docs-first）: SDK/API 仕様・20 秒既定・Sender switch との直交性・適用 3 handler の対応表 | kmch4n |
 | 2026-07-06 | §2.2 メインメニューに「リッチメニュー本実装は決勝プレゼン後、当面 Quick Reply モックで運用」を追記 | kmch4n |
