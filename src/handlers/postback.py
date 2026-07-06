@@ -21,7 +21,7 @@ from linebot.v3.webhooks import PostbackEvent
 from src.config import handler
 from src.handlers import parent, student
 from src.services import users
-from src.services.line_reply import reply_text
+from src.services.line_reply import reply_flex, reply_text
 from src.templates.flex.welcome import build_welcome_message
 from src.templates.quick_reply import (
     main_menu_quick_reply,
@@ -216,9 +216,13 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
 
     if action == "main":
         if role is None:
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            alt_text, contents, qr = build_welcome_message()
+            reply_flex(
+                event.reply_token,
+                alt_text=alt_text,
+                contents=contents,
+                quick_reply=qr,
+                sender="system",
             )
             return
         reply_text(
@@ -238,10 +242,11 @@ def _reply_placeholder(
 ) -> None:
     """Terminal reply with role-aware Quick Reply (docs §3.4)."""
     if role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
+        alt_text, contents, qr = build_welcome_message(prefix=text)
+        reply_flex(
             event.reply_token,
-            f"{text}\n\n{welcome_text}",
+            alt_text=alt_text,
+            contents=contents,
             quick_reply=qr,
             sender="system",
         )
@@ -267,9 +272,13 @@ def _reply_wrong_role(
       bounced back to onboarding, and vice-versa).
     """
     if actual_role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
-            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        alt_text, contents, qr = build_welcome_message()
+        reply_flex(
+            event.reply_token,
+            alt_text=alt_text,
+            contents=contents,
+            quick_reply=qr,
+            sender="system",
         )
         return
 

@@ -12,7 +12,7 @@ import logging
 from linebot.v3.webhooks import FollowEvent
 
 from src.config import handler
-from src.services.line_reply import reply_text
+from src.services.line_reply import reply_flex
 from src.templates.flex.welcome import build_welcome_message
 
 logger = logging.getLogger(__name__)
@@ -20,9 +20,15 @@ logger = logging.getLogger(__name__)
 
 @handler.add(FollowEvent)
 def handle_follow(event: FollowEvent) -> None:
-    """Reply with the welcome message + role Quick Reply."""
+    """Reply with the welcome Flex bubble + role Quick Reply."""
     user_id = event.source.user_id
     logger.info("Follow event from %s", user_id[:8] if user_id else "?")
 
-    text, qr = build_welcome_message()
-    reply_text(event.reply_token, text, quick_reply=qr, sender="friendly")
+    alt_text, contents, qr = build_welcome_message()
+    reply_flex(
+        event.reply_token,
+        alt_text=alt_text,
+        contents=contents,
+        quick_reply=qr,
+        sender="friendly",
+    )

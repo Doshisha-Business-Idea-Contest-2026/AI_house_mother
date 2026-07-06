@@ -17,7 +17,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from src.config import handler
 from src.handlers import parent, student
 from src.services import session, users
-from src.services.line_reply import reply_text
+from src.services.line_reply import reply_flex, reply_text
 from src.templates.flex.welcome import build_welcome_message
 from src.templates.quick_reply import (
     main_menu_quick_reply,
@@ -84,9 +84,13 @@ def handle_text(event: MessageEvent) -> None:
 
     if text in RESTART_COMMANDS:
         session.clear_state(user_id)
-        welcome_text, qr = build_welcome_message()
-        reply_text(
-            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        alt_text, contents, qr = build_welcome_message()
+        reply_flex(
+            event.reply_token,
+            alt_text=alt_text,
+            contents=contents,
+            quick_reply=qr,
+            sender="system",
         )
         return
 
@@ -197,9 +201,13 @@ def handle_text(event: MessageEvent) -> None:
     if len(text) >= 10:
         role = users.get_role(user_id)
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            alt_text, contents, qr = build_welcome_message()
+            reply_flex(
+                event.reply_token,
+                alt_text=alt_text,
+                contents=contents,
+                quick_reply=qr,
+                sender="system",
             )
             return
         student.handle_life_consultation(event)
@@ -222,10 +230,11 @@ def _reply_help(event: MessageEvent, user_id: str) -> None:
     role = users.get_role(user_id) if user_id else None
     if role is None:
         # Unregistered users get the welcome + role Quick Reply per §3.4.
-        welcome_text, qr = build_welcome_message()
-        reply_text(
+        alt_text, contents, qr = build_welcome_message(prefix=HELP_UNREGISTERED)
+        reply_flex(
             event.reply_token,
-            f"{HELP_UNREGISTERED}\n\n{welcome_text}",
+            alt_text=alt_text,
+            contents=contents,
             quick_reply=qr,
             sender="system",
         )
@@ -248,9 +257,13 @@ def _reply_help(event: MessageEvent, user_id: str) -> None:
 def _reply_main_menu(event: MessageEvent, user_id: str) -> None:
     role = users.get_role(user_id) if user_id else None
     if role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
-            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        alt_text, contents, qr = build_welcome_message()
+        reply_flex(
+            event.reply_token,
+            alt_text=alt_text,
+            contents=contents,
+            quick_reply=qr,
+            sender="system",
         )
         return
     reply_text(
@@ -271,10 +284,11 @@ def _reply_placeholder(event: MessageEvent, user_id: str, text: str) -> None:
     """
     role = users.get_role(user_id) if user_id else None
     if role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
+        alt_text, contents, qr = build_welcome_message(prefix=text)
+        reply_flex(
             event.reply_token,
-            f"{text}\n\n{welcome_text}",
+            alt_text=alt_text,
+            contents=contents,
             quick_reply=qr,
             sender="system",
         )
@@ -293,9 +307,13 @@ def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
     if role == required:
         return True
     if role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
-            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        alt_text, contents, qr = build_welcome_message()
+        reply_flex(
+            event.reply_token,
+            alt_text=alt_text,
+            contents=contents,
+            quick_reply=qr,
+            sender="system",
         )
         return False
     # role is the other one

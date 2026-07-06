@@ -272,10 +272,12 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
     message = _ERROR_MESSAGES.get(err, "コードを確認できませんでした。")
     if fail_count >= MAX_LINK_FAIL:
         session.clear_state(user_id)
-        welcome_text, qr = build_welcome_message()
-        reply_text(
+        prefix = f"{message}\n\n何度もエラーが続いたので、最初からやり直しましょう。"
+        alt_text, contents, qr = build_welcome_message(prefix=prefix)
+        reply_flex(
             event.reply_token,
-            f"{message}\n\n何度もエラーが続いたので、最初からやり直しましょう。\n\n{welcome_text}",
+            alt_text=alt_text,
+            contents=contents,
             quick_reply=qr,
             sender="system",
         )
@@ -296,10 +298,11 @@ def _reply_placeholder(
 ) -> None:
     """Terminal reply with role-aware Quick Reply (mirrors postback.py §3.4)."""
     if role is None:
-        welcome_text, qr = build_welcome_message()
-        reply_text(
+        alt_text, contents, qr = build_welcome_message(prefix=text)
+        reply_flex(
             event.reply_token,
-            f"{text}\n\n{welcome_text}",
+            alt_text=alt_text,
+            contents=contents,
             quick_reply=qr,
             sender="system",
         )
