@@ -23,7 +23,9 @@
 
 ## Git 安全ポリシー
 
-**ユーザーの明示的な指示がない限り、`git add`、`git commit`、`git push` を実行してはならない。**
+**ユーザーの明示的な指示がない限り、`git add`、`git commit` を実行してはならない。**
+
+`git push` の運用は `git_workflow.md` を参照（このリポジトリではコミット済み変更の push を許可。force push を除く）。
 
 - ユーザーがコミット依頼をした際は、このファイルと直近 10 件のコミット履歴を確認してからメッセージを起草する。
 - Git 書き込み操作の前に、`git config user.name` / `user.email` がユーザー本人のものであることを確認する。Bot や AI エージェントの identity になっていた場合は作業を停止して報告する。
