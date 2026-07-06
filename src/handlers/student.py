@@ -31,7 +31,13 @@ from src.services import (
     session,
     users,
 )
-from src.services.line_reply import push_flex, push_text, reply_flex, reply_text
+from src.services.line_reply import (
+    push_flex,
+    push_text,
+    reply_flex,
+    reply_text,
+    show_loading,
+)
 from src.templates.flex.activity_carousel import build_activity_carousel
 from src.templates.flex.invitation_code import build_invitation_bubble
 from src.templates.quick_reply import (
@@ -381,9 +387,10 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
         )
         return
 
-    # Acknowledge immediately, then push the actual proposal so the
-    # reply_token is not consumed while we wait for Gemini.
-    reply_text(event.reply_token, "🤔 あなたに合いそうな活動を考えています…少しだけお待ちください", sender="friendly")
+    # Show the LINE loading indicator so the user sees a native
+    # "typing" animation while we wait for Gemini. reply_token is
+    # intentionally left unused; the carousel goes out via push below.
+    show_loading(user_id)
 
     try:
         activities = gemini.propose_activities(profile)
@@ -431,7 +438,8 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
         return
 
     profile = profiles.get_profile(user_id)
-    reply_text(event.reply_token, f"📖 「{activity.get('title', '')}」について調べています…", sender="friendly")
+    # docs/04 §3.6: replace the text ack with the native loading indicator.
+    show_loading(user_id)
     try:
         detail = gemini.answer_activity_detail(profile, activity)
     except Exception:
@@ -545,7 +553,9 @@ def handle_life_consultation(event: MessageEvent) -> None:
         reply_text(event.reply_token, _EMERGENCY_CRIME_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
         return
 
-    reply_text(event.reply_token, "💭 少し考えます…", sender="friendly")
+    # docs/04 §3.6: show the native loading indicator while we search and
+    # call Gemini; the Gemini response goes out below as a push.
+    show_loading(user_id)
 
     profile = profiles.get_profile(user_id)
     result = context_search.find_relevant_context(text)
