@@ -77,7 +77,7 @@ def handle_postback(event: PostbackEvent) -> None:
         # Guard: user must be a student.
         role = users.get_role(user_id)
         if role != "student":
-            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            _reply_wrong_role(event, role, "student")
             return
         student.handle_profile_postback(event, data)
         return
@@ -85,7 +85,7 @@ def handle_postback(event: PostbackEvent) -> None:
     if data.startswith("activity:"):
         role = users.get_role(user_id)
         if role != "student":
-            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            _reply_wrong_role(event, role, "student")
             return
         _handle_activity(event, data)
         return
@@ -93,7 +93,7 @@ def handle_postback(event: PostbackEvent) -> None:
     if data.startswith("invite:"):
         role = users.get_role(user_id)
         if role != "student":
-            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            _reply_wrong_role(event, role, "student")
             return
         _handle_invite(event, data)
         return
@@ -101,7 +101,7 @@ def handle_postback(event: PostbackEvent) -> None:
     if data.startswith("post:"):
         role = users.get_role(user_id)
         if role != "student":
-            _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
+            _reply_wrong_role(event, role, "student")
             return
         student.handle_post_postback(event, data)
         return
@@ -109,7 +109,7 @@ def handle_postback(event: PostbackEvent) -> None:
     if data.startswith("link:"):
         role = users.get_role(user_id)
         if role != "parent":
-            _reply_placeholder(event, role, "この操作は保護者アカウント向けです。")
+            _reply_wrong_role(event, role, "parent")
             return
         parent.handle_link_postback(event, data)
         return
@@ -158,10 +158,7 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
 
     if action == "profile_start":
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.start_profile_flow(event)
         return
@@ -170,71 +167,49 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         # Profile view/edit is not implemented yet; treat the button as a
         # shortcut to restart profile registration.
         if role != "student":
-            reply_text(
-                event.reply_token,
-                "この操作は学生アカウント向けです。",
-                sender="system",
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.start_profile_flow(event)
         return
 
     if action == "want_to_do":
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.handle_want_to_do(event)
         return
 
     if action == "life":
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.start_life_consultation(event)
         return
 
     if action == "post":
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.start_post_flow(event)
         return
 
     if action == "invite":
         if role != "student":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "student")
             return
         student.start_invitation_flow(event)
         return
 
     if action == "monthly_report":
         if role != "parent":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "parent")
             return
         parent.handle_monthly_report(event)
         return
 
     if action == "link_student":
         if role != "parent":
-            welcome_text, qr = build_welcome_message()
-            reply_text(
-                event.reply_token, welcome_text, quick_reply=qr, sender="system"
-            )
+            _reply_wrong_role(event, role, "parent")
             return
         parent.start_link_flow(event)
         return
@@ -275,5 +250,36 @@ def _reply_placeholder(
         event.reply_token,
         text,
         quick_reply=main_menu_quick_reply(role),
+        sender="system",
+    )
+
+
+def _reply_wrong_role(
+    event: PostbackEvent, actual_role: str | None, required_role: str
+) -> None:
+    """Reply when a postback arrives from the wrong role.
+
+    - ``actual_role`` is ``None`` → send the welcome message so an
+      unregistered user can pick a role from scratch.
+    - ``actual_role`` differs from ``required_role`` → keep the user on
+      their current role's main menu and explain the mismatch (so a
+      logged-in parent tapping a student-only Flex button is not
+      bounced back to onboarding, and vice-versa).
+    """
+    if actual_role is None:
+        welcome_text, qr = build_welcome_message()
+        reply_text(
+            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        )
+        return
+
+    label = "学生" if required_role == "student" else "保護者"
+    reply_text(
+        event.reply_token,
+        (
+            f"この操作は{label}アカウント向けです。\n"
+            "役割を変える場合は「はじめる」と送って選び直してください。"
+        ),
+        quick_reply=main_menu_quick_reply(actual_role),
         sender="system",
     )
