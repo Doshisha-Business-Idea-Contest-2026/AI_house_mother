@@ -25,4 +25,4 @@ def handle_follow(event: FollowEvent) -> None:
     logger.info("Follow event from %s", user_id[:8] if user_id else "?")
 
     text, qr = build_welcome_message()
-    reply_text(event.reply_token, text, quick_reply=qr)
+    reply_text(event.reply_token, text, quick_reply=qr, sender="friendly")

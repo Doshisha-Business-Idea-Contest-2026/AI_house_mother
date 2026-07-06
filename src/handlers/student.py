@@ -383,7 +383,7 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
 
     # Acknowledge immediately, then push the actual proposal so the
     # reply_token is not consumed while we wait for Gemini.
-    reply_text(event.reply_token, "🤔 あなたに合いそうな活動を考えています…少しだけお待ちください")
+    reply_text(event.reply_token, "🤔 あなたに合いそうな活動を考えています…少しだけお待ちください", sender="friendly")
 
     try:
         activities = gemini.propose_activities(profile)
@@ -395,6 +395,7 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
         push_text(
             user_id,
             "うまく提案を思いつけませんでした。少し時間を空けてもう一度お試しください🙇",
+            sender="friendly",
         )
         return
 
@@ -406,11 +407,13 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
         user_id,
         alt_text="🎯 やりたいこと相談：あなたへのおすすめ",
         contents=flex,
+        sender="friendly",
     )
     push_text(
         user_id,
         "気になる提案があれば、カード内のボタンを押してください👇",
         quick_reply=_activity_quick_reply(),
+        sender="friendly",
     )
 
 
@@ -428,7 +431,7 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
         return
 
     profile = profiles.get_profile(user_id)
-    reply_text(event.reply_token, f"📖 「{activity.get('title', '')}」について調べています…")
+    reply_text(event.reply_token, f"📖 「{activity.get('title', '')}」について調べています…", sender="friendly")
     try:
         detail = gemini.answer_activity_detail(profile, activity)
     except Exception:
@@ -437,7 +440,7 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
             f"「{activity.get('title', '')}」の詳しい情報を取得できませんでした。"
             "担当団体に直接お問い合わせください。"
         )
-    push_text(user_id, detail, quick_reply=_activity_quick_reply())
+    push_text(user_id, detail, quick_reply=_activity_quick_reply(), sender="friendly")
 
 
 def handle_activity_participated(event: PostbackEvent, key: str) -> None:
@@ -459,6 +462,7 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
             "詳しい体験投稿は Day 3 で追加予定です。今日はここまでで OK です。"
         ),
         quick_reply=_activity_quick_reply(),
+        sender="friendly",
     )
 
 
@@ -511,6 +515,7 @@ def start_life_consultation(event: MessageEvent | PostbackEvent) -> None:
         event.reply_token,
         "💬 生活のお困りごとをどうぞ。「熱っぽくて病院を探しています」のように自由に書いてください。",
         quick_reply=_life_quick_reply(),
+        sender="friendly",
     )
 
 
@@ -529,18 +534,18 @@ def handle_life_consultation(event: MessageEvent) -> None:
     emergency = context_search.detect_emergency(text)
     if emergency == "life":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_LIFE_REPLY, quick_reply=_life_quick_reply())
+        reply_text(event.reply_token, _EMERGENCY_LIFE_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
         return
     if emergency == "medical":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_MEDICAL_REPLY, quick_reply=_life_quick_reply())
+        reply_text(event.reply_token, _EMERGENCY_MEDICAL_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
         return
     if emergency == "crime":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_CRIME_REPLY, quick_reply=_life_quick_reply())
+        reply_text(event.reply_token, _EMERGENCY_CRIME_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
         return
 
-    reply_text(event.reply_token, "💭 少し考えます…")
+    reply_text(event.reply_token, "💭 少し考えます…", sender="friendly")
 
     profile = profiles.get_profile(user_id)
     result = context_search.find_relevant_context(text)
@@ -579,7 +584,7 @@ def handle_life_consultation(event: MessageEvent) -> None:
         sorted(result["matched_categories"]),
     )
 
-    push_text(user_id, final, quick_reply=_life_quick_reply())
+    push_text(user_id, final, quick_reply=_life_quick_reply(), sender="friendly")
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
 

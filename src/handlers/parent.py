@@ -203,7 +203,10 @@ def _reply_report_for(
         )
         if use_reply_token:
             reply_text(
-                event.reply_token, text, quick_reply=main_menu_quick_reply("parent")
+                event.reply_token,
+                text,
+                quick_reply=main_menu_quick_reply("parent"),
+                sender="friendly",
             )
         return
 
@@ -222,6 +225,7 @@ def _reply_report_for(
             alt_text=alt_text,
             contents=bubble,
             quick_reply=main_menu_quick_reply("parent"),
+            sender="friendly",
         )
 
 
