@@ -37,6 +37,8 @@
 - 👤 プロフィール（連携済み学生の一覧）
 - ❓ ヘルプ
 
+**Day 4 時点の運用**: リッチメニュー本実装（画像作成 + LINE API 登録）は決勝プレゼン後に持ち越し（`docs/09_tasks.md` T4.2）。当面は `main_menu_quick_reply(role)` の Quick Reply で全機能に到達できる状態を保つ。
+
 ## 3. 共通仕様
 
 ### 3.1 メッセージ長
@@ -706,3 +708,4 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
 | 2026-07-06 | Day 4 T4.1b Sender switch を実装完了: §3.5 の暫定 friendly 注記を撤回し、`line_reply` に `sender` 引数と `SENDER_PRESETS` の呼び出し実態、および friendly/system/notify それぞれの現行呼び出し場所を反映 | kmch4n |
 | 2026-07-06 | §4.4 生活相談の情報源に `data/posts.json` を追加、§4.5 経験投稿に「他学生の生活相談 context へ全件匿名化継承」ポリシーを追記（T4.10 の docs-first 更新、SECI モデル体現） | kmch4n |
 | 2026-07-06 | §3.6 Loading indicator による中間応答の可視化を新設（Day 4 T4.11 の docs-first）: SDK/API 仕様・20 秒既定・Sender switch との直交性・適用 3 handler の対応表 | kmch4n |
+| 2026-07-06 | §2.2 メインメニューに「リッチメニュー本実装は決勝プレゼン後、当面 Quick Reply モックで運用」を追記 | kmch4n |

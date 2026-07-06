@@ -333,12 +333,19 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T4.1a Flex Message デザイン調整
 
-**目的**: 見た目の質を上げる
+**目的**: 見た目の質を上げる。プレゼンでオンボーディングを見せる際のインパクト向上のため、welcome を Flex bubble 化する副目標も含める。
 
 **手順**:
-- ウェルカム、活動カード、月次レポートの余白・色を調整
-- 絵文字の統一
-- iOS / Android 両方で表示崩れがないか確認
+- **welcome の Flex 化**: `src/templates/flex/welcome.py::build_welcome_message()` の返り値を `tuple[str, dict, QuickReply]`（alt_text / flex_contents / quick_reply）に変更。呼び出し側 10+ 箇所（`handlers/follow.py`, `handlers/message.py`, `handlers/postback.py`, `handlers/parent.py`）を `reply_flex` に置換。role=None での `_reply_placeholder` は Flex bubble の前置きテキストとして prefix を差し込める形にする。
+- **既存 3 bubble（activity_carousel / invitation_code / monthly_report）のスタイル統一**:
+  - Body spacing を `"md"` に統一（`monthly_report.py:110` の `"sm"` を修正）
+  - Body title size を `"md"` weight `"bold"` に統一
+  - Separator color を `"#e0e0e0"` に統一（`monthly_report.py:80` の `"#f0f0f0"` を修正）
+  - Header sub-title size を `"sm"` に統一（`activity_carousel.py:89` の `"xs"` を修正）
+- **絵文字調整**:
+  - `↺`（U+21BA、Android 一部フォントで細字化）→ `🔄` に置換（`invitation_code.py` と `quick_reply.py::invitation_menu_quick_reply`）
+  - `monthly_report.py` の `✨` 見出しを `🌸` に差し替え（category=other との衝突回避）
+  - `invitation_code.py:78` の `size: "4xl"` → `"3xl"`（狭幅端末での折返し回避）
 
 **推定**: 2 時間
 
@@ -376,7 +383,7 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 **推定**: 2 時間
 
-### T4.2 リッチメニュー実装（P1）
+### T4.2 リッチメニュー実装（P1、決勝プレゼン後に持ち越し）
 
 **目的**: 主要機能への導線を固定表示する
 
@@ -385,16 +392,17 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 - LINE Messaging API でメニュー登録
 - 学生用・保護者用の 2 パターンを user 属性で切り替え
 
-**推定**: 2 時間（時間ないなら省略）
+**推定**: 2 時間
+
+**Day 4 の暫定運用**: 決勝プレゼン 2026-07-08 までは Quick Reply モックで導線を確保する。`main_menu_quick_reply(role)` が 6 項目（学生）/ 3 項目（保護者）を常に提示するため、機能到達性は担保されている。リッチメニュー本実装はプレゼン後の Day 5+ 課題に持ち越し。
 
 ### T4.3 ヘルプ・エラーメッセージ整備
 
-**目的**: FR-C1, エラー系の充実
+**目的**: FR-C1 / エラー系の文言磨き込み。3 サブスコープに分割:
 
-**手順**:
-- 役割別ヘルプの文言確定
-- 全エラーメッセージの語尾統一
-- 想定外入力への挙動確認
+- **T4.3-a 残置文言除去**: `HELP_STUDENT` / `HELP_PARENT` の "(Day 3)" 表記、`PARENT_CONFIRM` の "Day 3 で実装予定"、プロフィール完了メッセージの「順次追加中」、`handle_activity_participated` の「Day 3 で追加予定」、docstring 内の "Day 2+ / Later days will add ..." を実装済み事実に更新。
+- **T4.3-b 語尾統一**: 「アクション」「機能」→「操作」に統一、セッション切れメッセージを 1 種類に統一、リトライ文言（「お試しください」）、`_ERROR_MESSAGES` の末尾句点統一、メニュー文言（「下のボタン」→「下のメニュー」）。
+- **T4.3-c 権限違い応答一貫性**: `_reply_wrong_role(event, actual_role, required_role)` ヘルパーを追加し、`postback.py::_handle_menu` の全 role 不一致分岐と `postback.py` の prefix 判定を統一。
 
 **推定**: 1 時間
 
@@ -490,7 +498,9 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 **Day 割当**: Day 4 に組み込む。
 
-### T4.9 Post-hoc 正規表現ハルシネーション検出
+### T4.9 Post-hoc 正規表現ハルシネーション検出（Day 5+ に持ち越し）
+
+**Day 4 での判断**: Zero-context disclaimer（T2.hallu、`docs/06_ai_spec.md §5.3`）とプロンプト側の「情報源にない固有情報を断定しない」制約、T4.10 SECI 継承（学生投稿を反映）で MVP 期間の Truth 対策は十分。デモ後の Day 5+ に持ち越す。以下は将来仕様として残す。
 
 **目的**: `docs/06_ai_spec.md §5.2` の post-hoc チェックを実装、Gemini 応答に含まれる捏造固有情報を検出・除去する。
 
@@ -566,3 +576,4 @@ Day 1
 | 2026-07-06 | Day 3 タスク詳細化: T3.0 docs 先行更新 & init_data 拡張を新設、T3.1〜T3.4 の成果物・完了基準を家族ループ仕様（招待コード再発行 invalidate / 5 回失敗リセット / 6 ステップ経験投稿 / Pull 主軸月次レポート）に合わせて拡張、T3.4-b を月次 Push スケジューラとして分離、依存グラフを同期 | kmch4n |
 | 2026-07-06 | T4.10 を新設: 学生投稿を生活相談 Gemini context に匿名化継承する SECI モデル体現タスク（成果物 posts.list_all_for_context / context_search 拡張 / prompts 更新 / gemini 呼び出し） | kmch4n |
 | 2026-07-06 | T4.11 を新設: LINE Loading Indicator API による中間応答 UX 磨き込み。line_reply.show_loading を追加し、student.py の 3 handler で「考えています…」等のテキスト reply を Loading Indicator に置き換える | kmch4n |
+| 2026-07-06 | Day 4 残タスクの範囲確定: T4.2 リッチメニュー本実装を Day 5+ に持ち越し（Quick Reply モックで暫定運用）、T4.9 Post-hoc 正規表現ハルシネーション検出も Day 5+ に持ち越し、T4.1a に welcome Flex 化を追加、T4.3 を 3 サブスコープ (a 残置除去 / b 語尾統一 / c 権限違い応答一貫性) に分割 | kmch4n |
