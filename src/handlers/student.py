@@ -147,7 +147,7 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
     if step == "profile.grade":
         reply_text(
             event.reply_token,
-            "学年は下のボタンから選んでください🎓",
+            "学年は下のメニューから選んでください🎓",
             quick_reply=grade_quick_reply(),
             sender="system",
         )
@@ -156,7 +156,7 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
     if step == "profile.interests":
         reply_text(
             event.reply_token,
-            "興味のタグは下のボタンから選んでください（複数OK）。選び終わったら ✅ 完了 を押してください",
+            "興味のタグは下のメニューから選んでください（複数OK）。選び終わったら ✅ 完了 を押してください。",
             quick_reply=interests_quick_reply(),
             sender="system",
         )
@@ -165,7 +165,7 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
     if step == "profile.confirm":
         reply_text(
             event.reply_token,
-            "下のボタンで「登録する」か「やり直す」を選んでください",
+            "下のメニューで「登録する」か「やり直す」を選んでください。",
             quick_reply=confirm_quick_reply(),
             sender="system",
         )
@@ -187,7 +187,7 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
     if state is None:
         reply_text(
             event.reply_token,
-            "セッションが切れてしまいました。もう一度「プロフィール」と送ってやり直してください。",
+            "セッションが切れました。もう一度「プロフィール」からやり直してください。",
             sender="system",
         )
         return
@@ -760,7 +760,7 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
     if state is None or not state["state"].startswith("post."):
         reply_text(
             event.reply_token,
-            "セッションが切れました。もう一度「✏️ 経験を投稿」から始めてください。",
+            "セッションが切れました。もう一度「✏️ 経験を投稿」からやり直してください。",
             quick_reply=main_menu_quick_reply("student"),
             sender="system",
         )
@@ -820,21 +820,21 @@ def _reprompt_post_step(event: MessageEvent, step: str) -> None:
     if step == "post.category":
         reply_text(
             event.reply_token,
-            "下のボタンからカテゴリを選んでください。",
+            "下のメニューからカテゴリを選んでください。",
             quick_reply=post_category_quick_reply(),
             sender="system",
         )
     elif step == "post.share_parent":
         reply_text(
             event.reply_token,
-            "下のボタンで「共有する」か「共有しない」を選んでください。",
+            "下のメニューで「共有する」か「共有しない」を選んでください。",
             quick_reply=post_share_parent_quick_reply(),
             sender="system",
         )
     elif step == "post.confirm":
         reply_text(
             event.reply_token,
-            "下のボタンで「投稿する」か「やり直す」を選んでください。",
+            "下のメニューで「投稿する」か「やり直す」を選んでください。",
             quick_reply=post_confirm_quick_reply(),
             sender="system",
         )
@@ -882,7 +882,7 @@ def _finalize_post(event: PostbackEvent) -> None:
         logger.exception("posts.add_post rejected input")
         reply_text(
             event.reply_token,
-            "投稿の保存に失敗しました🙇 もう一度試してみてください。",
+            "投稿の保存に失敗しました🙇 少し時間を空けてもう一度お試しください。",
             quick_reply=main_menu_quick_reply("student"),
             sender="system",
         )

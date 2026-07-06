@@ -115,7 +115,7 @@ def handle_postback(event: PostbackEvent) -> None:
         return
 
     logger.warning("Unknown postback data: %s", data)
-    _reply_placeholder(event, users.get_role(user_id), "未対応のアクションです。")
+    _reply_placeholder(event, users.get_role(user_id), "未対応の操作です。")
 
 
 def _handle_invite(event: PostbackEvent, data: str) -> None:
@@ -167,11 +167,12 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "profile":
-        # Placeholder until profile view/edit is designed; for now, restart flow.
+        # Profile view/edit is not implemented yet; treat the button as a
+        # shortcut to restart profile registration.
         if role != "student":
             reply_text(
                 event.reply_token,
-                "この機能は学生アカウント向けです。",
+                "この操作は学生アカウント向けです。",
                 sender="system",
             )
             return
@@ -254,7 +255,7 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     logger.warning("Unknown menu action: %s", action)
-    _reply_placeholder(event, role, "未対応のアクションです。")
+    _reply_placeholder(event, role, "未対応の操作です。")
 
 
 def _reply_placeholder(

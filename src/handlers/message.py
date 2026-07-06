@@ -255,7 +255,7 @@ def _reply_main_menu(event: MessageEvent, user_id: str) -> None:
         return
     reply_text(
         event.reply_token,
-        "メインメニューです。下のボタンから選んでください👇",
+        "メインメニューです。下のメニューから選んでください👇",
         quick_reply=main_menu_quick_reply(role),
         sender="system",
     )
@@ -301,7 +301,7 @@ def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
     # role is the other one
     reply_text(
         event.reply_token,
-        f"この機能は{'学生' if required == 'student' else '保護者'}向けです。",
+        f"この操作は{'学生' if required == 'student' else '保護者'}アカウント向けです。",
         sender="system",
     )
     return False
