@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import Any, TypedDict
 
-from src.services import seed
+from src.services import posts, seed
 
 # Emergency detection keywords, split by severity.
 EMERGENCY_LIFE = ["死にたい", "消えたい", "自殺"]
@@ -45,7 +45,11 @@ class ContextSearchResult(TypedDict):
 
     - ``stores`` / ``areas`` / ``senior_posts`` are the top-k seed items
       that scored above zero for the current query.
-    - ``total_hits`` is the sum of the three lists' lengths.
+    - ``student_posts`` are the top-k anonymized runtime posts (only the
+      allow-listed fields from :func:`posts.list_all_for_context`); this
+      is the SECI-model inheritance channel documented in
+      ``docs/06_ai_spec.md §4.2``.
+    - ``total_hits`` is the sum of the four lists' lengths.
     - ``matched_categories`` is the set of ``category`` fields collected
       from those items (used later for post-hoc analytics).
     """
@@ -53,6 +57,7 @@ class ContextSearchResult(TypedDict):
     stores: list[dict[str, Any]]
     areas: list[dict[str, Any]]
     senior_posts: list[dict[str, Any]]
+    student_posts: list[dict[str, Any]]
     total_hits: int
     matched_categories: set[str]
 
@@ -132,9 +137,12 @@ def find_relevant_context(
     stores = rank(seed.get_stores(), ["name", "description", "area"])
     areas = rank(seed.get_areas(), ["name", "description"])
     senior_posts = rank(seed.get_senior_posts(), ["title", "body", "area"])
+    student_posts = rank(
+        posts.list_all_for_context(), ["title", "body", "area"]
+    )
 
     matched: set[str] = set()
-    for item in (*stores, *areas, *senior_posts):
+    for item in (*stores, *areas, *senior_posts, *student_posts):
         category = item.get("category")
         if isinstance(category, str) and category:
             matched.add(category)
@@ -143,7 +151,10 @@ def find_relevant_context(
         "stores": stores,
         "areas": areas,
         "senior_posts": senior_posts,
-        "total_hits": len(stores) + len(areas) + len(senior_posts),
+        "student_posts": student_posts,
+        "total_hits": (
+            len(stores) + len(areas) + len(senior_posts) + len(student_posts)
+        ),
         "matched_categories": matched,
     }
 
