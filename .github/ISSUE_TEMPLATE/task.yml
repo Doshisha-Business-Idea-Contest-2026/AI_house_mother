@@ -1,0 +1,48 @@
+name: タスク (refactor / docs / chore)
+description: リファクタリング・ドキュメント・雑務など
+title: "[chore] "
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: 種別
+      description: 選んだ種別に合わせてタイトル接頭辞と type ラベルも揃えてください
+      options:
+        - refactor
+        - docs
+        - chore
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 何をするか 1〜2 文で
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 目的・背景
+      description: なぜ必要か
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: done の定義
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      description: 対応する priority ラベルも忘れず付けてください
+      options:
+        - high
+        - medium
+        - low
+    validations:
+      required: true

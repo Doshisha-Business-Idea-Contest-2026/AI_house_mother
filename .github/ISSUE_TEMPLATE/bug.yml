@@ -1,0 +1,61 @@
+name: バグ報告 (bug)
+description: 不具合の報告
+title: "[bug] "
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 何が問題か 1〜2 文で
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      value: |
+        1.
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する挙動
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の挙動
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境
+      value: |
+        - 端末 / OS:
+        - LINE アプリ版:
+        - 役割: 学生 / 保護者
+    validations:
+      required: false
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      description: 対応する priority ラベルも忘れず付けてください
+      options:
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補足
+      description: ログ・スクリーンショットなど（任意）
+    validations:
+      required: false
