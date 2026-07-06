@@ -167,9 +167,15 @@
 
 MVP 期間は暫定の 512×512 PNG を `static/icons/` にコミット済み。デモ前にチームで正式版に差し替える。
 
-**Day 3 実装期間の暫定運用**（Sender switch 未実装期間の扱い）:
+**Day 4 T4.1b 完了時点の実装状況**:
 
-Sender switch は Day 4 の T4.1b で `line_reply.py` に組み込む予定であり、Day 3 実装期間（招待コード発行完了 push、保護者連携完了通知 push、月次サマリー Push）はすべて `sender` 未指定で送出する。この期間は既定の bot アイコン・名前で届く（`friendly` プリセット相当）ため、上表の `notify` 分類に該当するメッセージも Day 3 完了時点では `friendly` の見た目になる。Day 4 T4.1b 完了時に `notify` へ差し替える。この暫定運用は UX 一貫性の観点で Day 4 完了まで劣化した状態となるが、デモ動線で口頭補足する前提で許容する。
+T4.1b 実装により、上表の分類はコードに反映済み。`src/services/line_reply.py` の `reply_text` / `reply_flex` / `push_text` / `push_flex` はいずれも `sender: SenderPreset | None = None` を受け取り、未指定時は `friendly` プリセットにフォールバックする。呼び出し側の分類は次のとおり:
+
+- **friendly**: `handlers/follow.py::handle_follow`（welcome）、`handlers/student.py` の `handle_want_to_do` / `handle_activity_detail` / `handle_activity_participated` / `start_life_consultation` / `handle_life_consultation`（緊急定型・「少し考えます」・Gemini 応答）、`handlers/parent.py::_reply_report_for`。
+- **system**: `handlers/message.py` と `handlers/postback.py` のキャンセル・placeholder・エラー・welcome fallback、`handlers/student.py` のプロフィール登録・経験投稿の全ステップ・招待発行エラー、`handlers/parent.py::start_link_flow` / `_handle_link_failure` / `handle_monthly_report`（未連携誘導）/ `_reply_placeholder`。
+- **notify**: `handlers/student.py::start_invitation_flow`（招待コード Flex）、`handlers/parent.py::handle_link_text`（学生への `_LINK_COMPLETED_STUDENT` push + 保護者への `_LINK_COMPLETED_PARENT` reply）、`handlers/parent.py::_push_report_for`、`services/monthly_report.py::push_previous_month_to_all` の月次 Push。
+
+`PUBLIC_BASE_URL` は `.env` 経由で切替可能（デフォルト `https://linebot.kmchan.jp/ai_house_mother`）で、FastAPI の `StaticFiles` マウントが `/ai_house_mother/static/icons/*.png` を配信する。
 
 **iconUrl キャッシュ注意**:
 
@@ -656,3 +662,4 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
 | 2026-07-06 | §4.3 に generated ラベル、§4.4 に Zero-context 分岐フローと応答例、§3.2 のエラー表に関連情報 0 件行、§3.3 に構造化ログフィールド 4 種を追記 | kmch4n |
 | 2026-07-06 | §3.4 終端応答の Quick Reply 付与ルール新設、§3.5 送信者アイコン切替（Sender switch）仕様新設、§3.2 エラー表にキャンセル・placeholder 行と QR 付与補足列を追加 | kmch4n |
 | 2026-07-06 | Day 3 家族ループ仕様を確定: §3.3 に月次 push ログ 7 項目、§3.5 に Day 3 期間 sender 未指定の暫定運用、§4.5 に 6 ステップ・area 正規化・share_with_parent 不変条件、§4.6 に再発行 invalidate と発行後 idle の誘導、§5.2 にエラー 4 種と 5 回失敗リセット、§5.3 に Pull/Push 併用・非対称ルール、§7 に予約語ルーティング優先順位表 | kmch4n |
+| 2026-07-06 | Day 4 T4.1b Sender switch を実装完了: §3.5 の暫定 friendly 注記を撤回し、`line_reply` に `sender` 引数と `SENDER_PRESETS` の呼び出し実態、および friendly/system/notify それぞれの現行呼び出し場所を反映 | kmch4n |

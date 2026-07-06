@@ -625,6 +625,7 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
         alt_text=alt_text,
         contents=bubble,
         quick_reply=invitation_menu_quick_reply(),
+        sender="notify",
     )
     logger.info(
         "invitation_issued user=%s code_len=%d",

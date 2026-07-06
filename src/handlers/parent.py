@@ -137,7 +137,7 @@ def handle_link_text(event: MessageEvent) -> None:
 
     # Notify the student and confirm to the parent.
     try:
-        push_text(student_id, _LINK_COMPLETED_STUDENT)
+        push_text(student_id, _LINK_COMPLETED_STUDENT, sender="notify")
     except Exception:
         logger.exception("push_text to student failed")
 
@@ -145,6 +145,7 @@ def handle_link_text(event: MessageEvent) -> None:
         event.reply_token,
         _LINK_COMPLETED_PARENT,
         quick_reply=main_menu_quick_reply("parent"),
+        sender="notify",
     )
     logger.info(
         "parent_link completed parent=%s student=%s",
@@ -238,6 +239,7 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
                 f"📊 {report['student_display']}の今月（{report['year_month']}）"
                 "はまだ頑張ったことの記録がありません。"
             ),
+            sender="notify",
         )
         return
     bubble = build_monthly_report_bubble(
@@ -249,7 +251,9 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
         f"📊 {report['student_display']}の今月（{report['year_month']}）"
         f" 頑張ったこと {len(report['posts'])} 件"
     )
-    push_flex(parent_user_id, alt_text=alt_text, contents=bubble)
+    push_flex(
+        parent_user_id, alt_text=alt_text, contents=bubble, sender="notify"
+    )
 
 
 # ---------------------------------------------------------------------------
