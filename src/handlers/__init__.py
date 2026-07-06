@@ -12,4 +12,5 @@ imports validated at boot time.
 from src.handlers import follow  # noqa: F401
 from src.handlers import postback  # noqa: F401
 from src.handlers import message  # noqa: F401
+from src.handlers import parent  # noqa: F401
 from src.handlers import student  # noqa: F401

@@ -15,7 +15,7 @@ import logging
 from linebot.v3.webhooks import PostbackEvent
 
 from src.config import handler
-from src.handlers import student
+from src.handlers import parent, student
 from src.services import users
 from src.services.line_reply import reply_text
 from src.templates.flex.welcome import build_welcome_message
@@ -90,6 +90,14 @@ def handle_postback(event: PostbackEvent) -> None:
             _reply_placeholder(event, role, "この操作は学生アカウント向けです。")
             return
         _handle_invite(event, data)
+        return
+
+    if data.startswith("link:"):
+        role = users.get_role(user_id)
+        if role != "parent":
+            _reply_placeholder(event, role, "この操作は保護者アカウント向けです。")
+            return
+        parent.handle_link_postback(event, data)
         return
 
     logger.warning("Unknown postback data: %s", data)
@@ -181,13 +189,19 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "monthly_report":
-        _reply_placeholder(
-            event, role, "📊 月次レポート機能は Day 3 で実装予定です。"
-        )
+        if role != "parent":
+            welcome_text, qr = build_welcome_message()
+            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            return
+        parent.handle_monthly_report(event)
         return
 
     if action == "link_student":
-        _reply_placeholder(event, role, "🔗 学生連携機能は Day 3 で実装予定です。")
+        if role != "parent":
+            welcome_text, qr = build_welcome_message()
+            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            return
+        parent.start_link_flow(event)
         return
 
     if action == "main":

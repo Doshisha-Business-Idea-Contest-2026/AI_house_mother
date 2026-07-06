@@ -14,7 +14,7 @@ import logging
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 from src.config import handler
-from src.handlers import student
+from src.handlers import parent, student
 from src.services import session, users
 from src.services.line_reply import reply_text
 from src.templates.flex.welcome import build_welcome_message
@@ -40,6 +40,8 @@ LIFE_COMMANDS = {"生活相談", "💬 生活相談", "相談"}
 ROLE_SWITCH_COMMANDS = {"役割変更", "切り替え", "きりかえ"}
 POST_COMMANDS = {"投稿", "経験", "✏️ 経験を投稿"}
 INVITE_COMMANDS = {"招待", "コード", "\U0001F468‍\U0001F469‍\U0001F467 保護者連携"}
+LINK_COMMANDS = {"連携", "🔗 学生と連携"}
+MONTHLY_COMMANDS = {"レポート", "頑張ったこと", "📊 今月のレポート"}
 
 HELP_UNREGISTERED = (
     "まずは「学生」か「保護者」を選択してください。"
@@ -145,12 +147,31 @@ def handle_text(event: MessageEvent) -> None:
         student.start_invitation_flow(event)
         return
 
+    if text in LINK_COMMANDS:
+        session.clear_state(user_id)
+        if not _require_role(event, user_id, "parent"):
+            return
+        parent.start_link_flow(event)
+        return
+
+    if text in MONTHLY_COMMANDS:
+        session.clear_state(user_id)
+        if not _require_role(event, user_id, "parent"):
+            return
+        parent.handle_monthly_report(event)
+        return
+
     # ------------------------------------------------------------------
     # 2) Session-driven routing.
     # ------------------------------------------------------------------
     state = session.get_state(user_id)
     if student.is_in_profile_flow(state):
         student.handle_profile_text(event, state)  # type: ignore[arg-type]
+        return
+    if parent.is_in_link_flow(state):
+        if not _require_role(event, user_id, "parent"):
+            return
+        parent.handle_link_text(event)
         return
     if student.is_in_life_flow(state):
         if not _require_role(event, user_id, "student"):
