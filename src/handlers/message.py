@@ -35,7 +35,8 @@ CANCEL_COMMANDS = {"キャンセル", "やめる", "戻る"}
 MENU_COMMANDS = {"メインメニュー", "menu"}
 HELP_COMMANDS = {"ヘルプ", "使い方", "help", "Help", "HELP"}
 RESTART_COMMANDS = {"はじめる", "始める", "スタート", "/start"}
-PROFILE_COMMANDS = {"プロフィール", "プロフ", "✍️ プロフィールを登録"}
+PROFILE_COMMANDS = {"プロフィール", "プロフ"}
+PROFILE_START_COMMANDS = {"✍️ プロフィールを登録", "プロフィール登録"}
 WANT_TO_DO_COMMANDS = {"やりたい", "おすすめ", "🎯 やりたいこと相談"}
 LIFE_COMMANDS = {"生活相談", "💬 生活相談", "相談"}
 ROLE_SWITCH_COMMANDS = {"役割変更", "切り替え", "きりかえ"}
@@ -117,6 +118,13 @@ def handle_text(event: MessageEvent) -> None:
         session.clear_state(user_id)
         if not _require_role(event, user_id, "student"):
             return
+        student.handle_profile_view(event)
+        return
+
+    if text in PROFILE_START_COMMANDS:
+        session.clear_state(user_id)
+        if not _require_role(event, user_id, "student"):
+            return
         student.start_profile_flow(event)
         return
 
@@ -124,7 +132,7 @@ def handle_text(event: MessageEvent) -> None:
         session.clear_state(user_id)
         reply_text(
             event.reply_token,
-            "了解しました。「プロフィール」といつでも送ってください。",
+            "了解しました。「プロフィール登録」と送ればいつでも登録を始められます。",
             quick_reply=main_menu_quick_reply("student"),
             sender="system",
         )

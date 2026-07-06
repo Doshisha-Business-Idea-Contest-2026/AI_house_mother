@@ -39,6 +39,7 @@ from src.services.line_reply import (
 )
 from src.templates.flex.activity_carousel import build_activity_carousel
 from src.templates.flex.invitation_code import build_invitation_bubble
+from src.templates.flex.profile_view import build_profile_view_bubble
 from src.templates.quick_reply import (
     INTEREST_TAGS,
     POST_CATEGORIES,
@@ -54,6 +55,7 @@ from src.templates.quick_reply import (
     post_confirm_quick_reply,
     post_share_parent_quick_reply,
     profile_start_quick_reply,
+    profile_view_quick_reply,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,34 @@ MIN_INTERESTS = 1
 # ---------------------------------------------------------------------------
 
 
+def handle_profile_view(event: MessageEvent | PostbackEvent) -> None:
+    """Show the student's stored profile as a Flex bubble.
+
+    Falls back to the registration prompt when no profile exists, so
+    the caller does not need to double-check ``profiles.has_profile``.
+    """
+    user_id = event.source.user_id
+    profile = profiles.get_profile(user_id)
+    if profile is None:
+        session.clear_state(user_id)
+        reply_text(
+            event.reply_token,
+            "プロフィールがまだ登録されていません。\n登録すると、あなたに合った活動提案や生活相談ができます。",
+            quick_reply=profile_start_quick_reply(),
+            sender="system",
+        )
+        return
+
+    session.clear_state(user_id)
+    reply_flex(
+        event.reply_token,
+        alt_text="👤 あなたのプロフィール",
+        contents=build_profile_view_bubble(profile),
+        quick_reply=profile_view_quick_reply(),
+        sender="system",
+    )
+
+
 def start_profile_flow(event: MessageEvent | PostbackEvent) -> None:
     """Kick off the profile registration flow."""
     user_id = event.source.user_id
@@ -75,7 +105,7 @@ def start_profile_flow(event: MessageEvent | PostbackEvent) -> None:
         # allow re-registration but flag to the user
         reply_text(
             event.reply_token,
-            "既に登録済みのプロフィールがあります。\nもう一度登録し直す場合、これまでの内容は上書きされます。\n\n🏫 大学名を教えてください（例: 同志社大学）",
+            "編集を始めます。今の内容はいったん置いておいて、最初から入力し直します（登録すると上書きされます）。\n\n🏫 まずは大学名を教えてください（例: 同志社大学）",
             sender="system",
         )
     else:
@@ -187,7 +217,7 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
     if state is None:
         reply_text(
             event.reply_token,
-            "セッションが切れました。もう一度「プロフィール」からやり直してください。",
+            "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
             sender="system",
         )
         return
@@ -249,7 +279,7 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
         if state is None or state["state"] != "profile.confirm":
             reply_text(
                 event.reply_token,
-                "セッションが切れました。もう一度「プロフィール」からやり直してください。",
+                "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
                 sender="system",
             )
             return

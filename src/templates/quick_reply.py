@@ -114,6 +114,33 @@ def cancel_quick_reply() -> QuickReply:
 # ---------------------------------------------------------------------------
 
 
+def profile_view_quick_reply() -> QuickReply:
+    """Quick Reply attached to the profile-view Flex bubble.
+
+    Lets the student jump into the re-registration flow (which reuses
+    ``menu:profile_start``) or return to the main menu without
+    triggering an accidental Gemini call from free text.
+    """
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="✏️ 編集する",
+                    data="menu:profile_start",
+                    display_text="✏️ 編集する",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🏠 メインメニュー",
+                    data="menu:main",
+                    display_text="メインメニュー",
+                )
+            ),
+        ]
+    )
+
+
 def profile_start_quick_reply() -> QuickReply:
     """Quick Reply shown right after role selection for students."""
     return QuickReply(

@@ -164,12 +164,10 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         return
 
     if action == "profile":
-        # Profile view/edit is not implemented yet; treat the button as a
-        # shortcut to restart profile registration.
         if role != "student":
             _reply_wrong_role(event, role, "student")
             return
-        student.start_profile_flow(event)
+        student.handle_profile_view(event)
         return
 
     if action == "want_to_do":
