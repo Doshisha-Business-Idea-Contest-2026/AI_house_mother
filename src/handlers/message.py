@@ -83,7 +83,9 @@ def handle_text(event: MessageEvent) -> None:
     if text in RESTART_COMMANDS:
         session.clear_state(user_id)
         welcome_text, qr = build_welcome_message()
-        reply_text(event.reply_token, welcome_text, quick_reply=qr)
+        reply_text(
+            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        )
         return
 
     if text in HELP_COMMANDS:
@@ -116,6 +118,7 @@ def handle_text(event: MessageEvent) -> None:
             event.reply_token,
             "了解しました。「プロフィール」といつでも送ってください。",
             quick_reply=main_menu_quick_reply("student"),
+            sender="system",
         )
         return
 
@@ -191,7 +194,9 @@ def handle_text(event: MessageEvent) -> None:
         role = users.get_role(user_id)
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.handle_life_consultation(event)
         return
@@ -218,18 +223,21 @@ def _reply_help(event: MessageEvent, user_id: str) -> None:
             event.reply_token,
             f"{HELP_UNREGISTERED}\n\n{welcome_text}",
             quick_reply=qr,
+            sender="system",
         )
     elif role == "student":
         reply_text(
             event.reply_token,
             HELP_STUDENT,
             quick_reply=main_menu_quick_reply("student"),
+            sender="system",
         )
     else:
         reply_text(
             event.reply_token,
             HELP_PARENT,
             quick_reply=main_menu_quick_reply("parent"),
+            sender="system",
         )
 
 
@@ -237,12 +245,15 @@ def _reply_main_menu(event: MessageEvent, user_id: str) -> None:
     role = users.get_role(user_id) if user_id else None
     if role is None:
         welcome_text, qr = build_welcome_message()
-        reply_text(event.reply_token, welcome_text, quick_reply=qr)
+        reply_text(
+            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        )
         return
     reply_text(
         event.reply_token,
         "メインメニューです。下のボタンから選んでください👇",
         quick_reply=main_menu_quick_reply(role),
+        sender="system",
     )
 
 
@@ -261,9 +272,15 @@ def _reply_placeholder(event: MessageEvent, user_id: str, text: str) -> None:
             event.reply_token,
             f"{text}\n\n{welcome_text}",
             quick_reply=qr,
+            sender="system",
         )
         return
-    reply_text(event.reply_token, text, quick_reply=main_menu_quick_reply(role))
+    reply_text(
+        event.reply_token,
+        text,
+        quick_reply=main_menu_quick_reply(role),
+        sender="system",
+    )
 
 
 def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
@@ -273,11 +290,14 @@ def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
         return True
     if role is None:
         welcome_text, qr = build_welcome_message()
-        reply_text(event.reply_token, welcome_text, quick_reply=qr)
+        reply_text(
+            event.reply_token, welcome_text, quick_reply=qr, sender="system"
+        )
         return False
     # role is the other one
     reply_text(
         event.reply_token,
         f"この機能は{'学生' if required == 'student' else '保護者'}向けです。",
+        sender="system",
     )
     return False

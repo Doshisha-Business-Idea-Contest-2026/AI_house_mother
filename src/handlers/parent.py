@@ -87,7 +87,12 @@ def start_link_flow(event: MessageEvent | PostbackEvent) -> None:
     """Prompt the parent to enter an invitation code."""
     user_id = event.source.user_id
     session.set_state(user_id, "link.code")
-    reply_text(event.reply_token, LINK_PROMPT, quick_reply=cancel_quick_reply())
+    reply_text(
+        event.reply_token,
+        LINK_PROMPT,
+        quick_reply=cancel_quick_reply(),
+        sender="system",
+    )
 
 
 def handle_link_postback(event: PostbackEvent, data: str) -> None:
@@ -173,6 +178,7 @@ def handle_monthly_report(event: MessageEvent | PostbackEvent) -> None:
                 "先に「🔗 学生と連携」から招待コードを入力してください。"
             ),
             quick_reply=main_menu_quick_reply("parent"),
+            sender="system",
         )
         return
 
@@ -263,6 +269,7 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
             event.reply_token,
             f"{message}\n\n何度もエラーが続いたので、最初からやり直しましょう。\n\n{welcome_text}",
             quick_reply=qr,
+            sender="system",
         )
         return
 
@@ -272,6 +279,7 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
         event.reply_token,
         f"{message}{hint}\n\n{LINK_PROMPT}",
         quick_reply=cancel_quick_reply(),
+        sender="system",
     )
 
 
@@ -285,6 +293,12 @@ def _reply_placeholder(
             event.reply_token,
             f"{text}\n\n{welcome_text}",
             quick_reply=qr,
+            sender="system",
         )
         return
-    reply_text(event.reply_token, text, quick_reply=main_menu_quick_reply(role))
+    reply_text(
+        event.reply_token,
+        text,
+        quick_reply=main_menu_quick_reply(role),
+        sender="system",
+    )

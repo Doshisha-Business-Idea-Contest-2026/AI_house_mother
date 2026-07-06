@@ -51,6 +51,7 @@ def handle_postback(event: PostbackEvent) -> None:
             event.reply_token,
             STUDENT_CONFIRM,
             quick_reply=profile_start_quick_reply(),
+            sender="system",
         )
         return
 
@@ -60,6 +61,7 @@ def handle_postback(event: PostbackEvent) -> None:
             event.reply_token,
             PARENT_CONFIRM,
             quick_reply=main_menu_quick_reply("parent"),
+            sender="system",
         )
         return
 
@@ -153,7 +155,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "profile_start":
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.start_profile_flow(event)
         return
@@ -161,7 +165,11 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "profile":
         # Placeholder until profile view/edit is designed; for now, restart flow.
         if role != "student":
-            reply_text(event.reply_token, "この機能は学生アカウント向けです。")
+            reply_text(
+                event.reply_token,
+                "この機能は学生アカウント向けです。",
+                sender="system",
+            )
             return
         student.start_profile_flow(event)
         return
@@ -169,7 +177,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "want_to_do":
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.handle_want_to_do(event)
         return
@@ -177,7 +187,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "life":
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.start_life_consultation(event)
         return
@@ -185,7 +197,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "post":
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.start_post_flow(event)
         return
@@ -193,7 +207,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "invite":
         if role != "student":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         student.start_invitation_flow(event)
         return
@@ -201,7 +217,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "monthly_report":
         if role != "parent":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         parent.handle_monthly_report(event)
         return
@@ -209,7 +227,9 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "link_student":
         if role != "parent":
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         parent.start_link_flow(event)
         return
@@ -217,12 +237,15 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     if action == "main":
         if role is None:
             welcome_text, qr = build_welcome_message()
-            reply_text(event.reply_token, welcome_text, quick_reply=qr)
+            reply_text(
+                event.reply_token, welcome_text, quick_reply=qr, sender="system"
+            )
             return
         reply_text(
             event.reply_token,
             "メインメニューです👇",
             quick_reply=main_menu_quick_reply(role),
+            sender="system",
         )
         return
 
@@ -240,6 +263,12 @@ def _reply_placeholder(
             event.reply_token,
             f"{text}\n\n{welcome_text}",
             quick_reply=qr,
+            sender="system",
         )
         return
-    reply_text(event.reply_token, text, quick_reply=main_menu_quick_reply(role))
+    reply_text(
+        event.reply_token,
+        text,
+        quick_reply=main_menu_quick_reply(role),
+        sender="system",
+    )
