@@ -16,8 +16,9 @@ from typing import Any
 
 from linebot.v3.webhooks import MessageEvent, PostbackEvent
 
-from src.services import invitations, parent_links, session, users
-from src.services.line_reply import push_text, reply_text
+from src.services import invitations, monthly_report, parent_links, session, users
+from src.services.line_reply import push_flex, push_text, reply_flex, reply_text
+from src.templates.flex.monthly_report import build_monthly_report_bubble
 from src.templates.flex.welcome import build_welcome_message
 from src.templates.quick_reply import cancel_quick_reply, main_menu_quick_reply
 
@@ -153,10 +154,14 @@ def handle_link_text(event: MessageEvent) -> None:
 
 
 def handle_monthly_report(event: MessageEvent | PostbackEvent) -> None:
-    """Show the parent this month's summary (Pull path).
+    """Show the parent this month's summary (Pull path, FR-P3).
 
-    The full Flex implementation lands in T3.4; this stub keeps the menu
-    button wired so it does not fall through to the placeholder text.
+    Behaviour:
+        * Unlinked parents receive a nudge to run the invitation flow.
+        * For a single linked student, the report is delivered inline as
+          a reply (Flex bubble or a plain text if the month is empty).
+        * For multiple linked students, the first report is returned as
+          a reply and any remaining are pushed sequentially.
     """
     user_id = event.source.user_id
     student_ids = parent_links.list_students_for_parent(user_id)
@@ -164,18 +169,77 @@ def handle_monthly_report(event: MessageEvent | PostbackEvent) -> None:
         reply_text(
             event.reply_token,
             (
-                "まだ学生さんと連携していません。"
+                "まだ学生さんと連携していません。\n"
                 "先に「🔗 学生と連携」から招待コードを入力してください。"
             ),
             quick_reply=main_menu_quick_reply("parent"),
         )
         return
-    # T3.4 で monthly_report サービスと Flex を組み込む予定。
-    reply_text(
-        event.reply_token,
-        "📊 今月のレポート機能は準備中です（T3.4 で実装予定）。",
-        quick_reply=main_menu_quick_reply("parent"),
+
+    first_id, *rest = student_ids
+    _reply_report_for(event, first_id, use_reply_token=True)
+    for other_id in rest:
+        _push_report_for(user_id, other_id)
+
+
+def _reply_report_for(
+    event: MessageEvent | PostbackEvent,
+    student_user_id: str,
+    *,
+    use_reply_token: bool,
+) -> None:
+    report = monthly_report.build_current_month_report(student_user_id)
+    if not report["posts"]:
+        text = (
+            f"📊 {report['student_display']}の今月（{report['year_month']}）"
+            "はまだ頑張ったことの記録がありません。\n"
+            "少し様子を見てあげてくださいね😊"
+        )
+        if use_reply_token:
+            reply_text(
+                event.reply_token, text, quick_reply=main_menu_quick_reply("parent")
+            )
+        return
+
+    bubble = build_monthly_report_bubble(
+        student_display=report["student_display"],
+        year_month=report["year_month"],
+        posts=report["posts"],
     )
+    alt_text = (
+        f"📊 {report['student_display']}の今月（{report['year_month']}）"
+        f" 頑張ったこと {len(report['posts'])} 件"
+    )
+    if use_reply_token:
+        reply_flex(
+            event.reply_token,
+            alt_text=alt_text,
+            contents=bubble,
+            quick_reply=main_menu_quick_reply("parent"),
+        )
+
+
+def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
+    report = monthly_report.build_current_month_report(student_user_id)
+    if not report["posts"]:
+        push_text(
+            parent_user_id,
+            (
+                f"📊 {report['student_display']}の今月（{report['year_month']}）"
+                "はまだ頑張ったことの記録がありません。"
+            ),
+        )
+        return
+    bubble = build_monthly_report_bubble(
+        student_display=report["student_display"],
+        year_month=report["year_month"],
+        posts=report["posts"],
+    )
+    alt_text = (
+        f"📊 {report['student_display']}の今月（{report['year_month']}）"
+        f" 頑張ったこと {len(report['posts'])} 件"
+    )
+    push_flex(parent_user_id, alt_text=alt_text, contents=bubble)
 
 
 # ---------------------------------------------------------------------------
