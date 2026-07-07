@@ -25,6 +25,13 @@ _CATEGORY_COLORS: dict[str, str] = {
 
 MAX_BUBBLES = 3
 
+# NFR-Truth-4 / docs/04_functional_spec.md §4.4: seed の実在情報を含む
+# 提案（store / event / volunteer）は、時点情報が古くなる前提で汎用注記を
+# 必ず bubble 末尾に添える。個別の data_freshness_note は Phase 3 では
+# 引き当てず、一律の警句のみ表示する。
+_FRESHNESS_NOTE_TYPES: frozenset[str] = frozenset({"store", "event", "volunteer"})
+_FRESHNESS_NOTE_TEXT = "※情報は変わっている可能性があります"
+
 
 def get_activity_header_color(reference_type: str) -> str:
     """Return the header colour used for ``reference_type``."""
@@ -152,6 +159,18 @@ def _build_bubble(
                 "wrap": True,
                 "size": "xs",
                 "color": "#999999",
+            }
+        )
+
+    if reference_type in _FRESHNESS_NOTE_TYPES:
+        body_contents.append({"type": "separator", "color": "#e0e0e0"})
+        body_contents.append(
+            {
+                "type": "text",
+                "text": _FRESHNESS_NOTE_TEXT,
+                "wrap": True,
+                "size": "xxs",
+                "color": "#aaaaaa",
             }
         )
 
