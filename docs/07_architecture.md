@@ -116,12 +116,12 @@ AI_house_mother/
 │   ├── posts.json
 │   ├── invitations.json
 │   ├── parent_links.json
-│   ├── seed/
-│   │   ├── areas.json
-│   │   ├── stores.json
-│   │   ├── events.json
-│   │   ├── senior_posts.json
-│   │   └── demo_profiles.json
+│   ├── seed/                    # 同志社今出川周辺データ（地域・イベント・店舗は実在、人物系は架空）
+│   │   ├── areas.json            # 実在（公共施設・行政・大学施設）
+│   │   ├── stores.json           # 実在（民間店舗、鮮度注記必須）
+│   │   ├── events.json           # 実在（大学公式・行政主催）
+│   │   ├── senior_posts.json     # 架空（プライバシー保護）
+│   │   └── demo_profiles.json    # 架空（プライバシー保護）
 │   └── logs/                 # .gitignore で除外
 ├── tests/
 │   ├── __init__.py
@@ -254,7 +254,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 初期データ生成（seed データは手動で書く。ユーザーレコードは空で開始）
+# 初期データ生成（seed データは手動で書く: 場所・イベント系は同志社今出川周辺の実在情報、人物系は架空。ユーザーレコードは空で開始）
 python scripts/init_data.py
 
 # 動作確認
