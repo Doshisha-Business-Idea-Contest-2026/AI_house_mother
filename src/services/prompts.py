@@ -66,6 +66,7 @@ def _summarise_profile(profile: dict[str, Any] | None) -> str:
 def _summarise_areas(areas: list[dict[str, Any]]) -> str:
     return "\n".join(
         f"- {a['name']} ({a.get('category', '')}): {a.get('description', '')}"
+        f" [情報鮮度: {a.get('last_verified_at', '不明')}]"
         for a in areas
     )
 
@@ -75,6 +76,7 @@ def _summarise_stores(stores: list[dict[str, Any]]) -> str:
         return "（該当なし）"
     return "\n".join(
         f"- {s['name']} ({s.get('category', '')}, {s.get('area', '')}): {s.get('description', '')}"
+        f" [情報鮮度: {s.get('data_freshness_note', '不明')}]"
         for s in stores
     )
 
@@ -84,6 +86,7 @@ def _summarise_events(events: list[dict[str, Any]]) -> str:
         return "（該当なし）"
     return "\n".join(
         f"- {e['name']} ({e.get('category', '')}, {e.get('area', '')}): {e.get('description', '')} 日程: {e.get('schedule', '')}"
+        f" [情報鮮度: {e.get('last_verified_at', '不明')}]"
         for e in events
     )
 
@@ -246,7 +249,9 @@ def build_life_consultation_prompt(
         "- 学生投稿は匿名情報なので、投稿者の名前・学年・大学などを推測して記載しない。\n"
         "- 医療的な内容なら「症状が続く場合は医療機関を受診してください」を必ず含める。\n"
         "- 緊急を疑う場合は #7119（京都府救急安心センター）や 119 を案内する。\n"
-        "- 実在の店舗・病院名は「情報が古い可能性があります」と注記する。\n"
+        "- 実在の店舗・病院・施設を挙げる場合は、上記【関連する店舗】/【関連する地域情報】の各行末の\n"
+        "  [情報鮮度: ...] の値をそのまま抜き出し、「※ (値)」の形で末尾に 1 文添える。\n"
+        "  例: 「※2026-07 時点の情報。営業状況は変わっている可能性があります」\n"
         "- 300 文字以内でまとめる。\n"
         + zero_context_line
         + "\n【回答書式】\n"
