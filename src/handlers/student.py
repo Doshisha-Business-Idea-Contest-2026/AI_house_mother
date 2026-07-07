@@ -58,6 +58,7 @@ from src.templates.quick_reply import (
     profile_view_quick_reply,
     want_to_do_menu_quick_reply,
 )
+from src.utils import text_format
 
 logger = logging.getLogger(__name__)
 
@@ -694,13 +695,17 @@ def handle_life_consultation(event: MessageEvent) -> None:
     disclaimer_shown = zero_context
     medical_followup_shown = zero_context and medical_intent
 
-    parts: list[str] = []
+    # docs/06 §4.2 / docs/04 §4.4: LINE does not render Markdown, so strip
+    # Gemini's Markdown residue and join disclaimer / body / followup with a
+    # single blank line before sending as one text bubble.
+    answer = text_format.normalize_markdown(answer)
+    blocks: list[str] = []
     if disclaimer_shown:
-        parts.append(prompts.ZERO_CONTEXT_DISCLAIMER)
-    parts.append(answer)
+        blocks.append(prompts.ZERO_CONTEXT_DISCLAIMER)
+    blocks.append(answer)
     if medical_followup_shown:
-        parts.append(prompts.MEDICAL_FOLLOWUP)
-    final = "".join(parts)
+        blocks.append(prompts.MEDICAL_FOLLOWUP)
+    final = text_format.join_blocks(blocks)
 
     logger.info(
         "life_consultation user=%s total_hits=%d zero_context=%s "
