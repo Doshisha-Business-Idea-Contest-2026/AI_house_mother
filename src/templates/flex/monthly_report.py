@@ -18,6 +18,10 @@ CATEGORY_EMOJI: dict[str, str] = {
     "store": "🍜",
     "medical": "🏥",
     "tips": "📋",
+    "study": "🎓",
+    "money": "💰",
+    "social": "🤝",
+    "effort": "💪",
     "other": "✨",
 }
 

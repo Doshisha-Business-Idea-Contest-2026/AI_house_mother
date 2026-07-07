@@ -296,12 +296,16 @@ POST_CATEGORIES: list[tuple[str, str]] = [
     ("🍜 お店・カフェ", "store"),
     ("🏥 病院・薬局", "medical"),
     ("📋 手続き・生活の知恵", "tips"),
+    ("🎓 学び・勉強", "study"),
+    ("💰 バイト・お金", "money"),
+    ("🤝 サークル・交友", "social"),
+    ("💪 がんばったこと", "effort"),
     ("✨ その他", "other"),
 ]
 
 
 def post_category_quick_reply() -> QuickReply:
-    """Quick Reply listing the 6 post categories + cancel."""
+    """Quick Reply listing the 10 post categories + cancel."""
     items: list[QuickReplyItem] = []
     for label, value in POST_CATEGORIES:
         items.append(
