@@ -148,3 +148,39 @@ def pick_static_fallback_activities(
             }
         )
     return result
+
+
+def pick_senior_post_activities(
+    profile: dict[str, Any], count: int = 3
+) -> list[dict[str, Any]]:
+    """Return ``count`` activity dicts derived from senior post seed.
+
+    Fallback for the "ほかの学生の取り組み" branch (docs/06 §4.1.1) when
+    Gemini fails or ``GEMINI_MOCK_MODE`` is on. Prefers posts whose
+    title/body/area contains one of the student's interests, then fills
+    up from the rest. Author identity (``author_pseudonym``) is never
+    copied into the result so the anonymization contract holds.
+    """
+    interests = profile.get("interests", [])
+    scored = get_senior_posts_by_keywords(interests, limit=count) if interests else []
+    pool = list(scored)
+    if len(pool) < count:
+        for post in get_senior_posts():
+            if post not in pool:
+                pool.append(post)
+            if len(pool) >= count:
+                break
+
+    result: list[dict[str, Any]] = []
+    for post in pool[:count]:
+        result.append(
+            {
+                "title": post.get("title", "先輩の取り組み"),
+                "summary": (post.get("body", "") or "")[:120],
+                "location": post.get("area", ""),
+                "when": "",
+                "why_recommend": "先輩の体験投稿から選ばれた候補です。",
+                "reference_type": "senior_post",
+            }
+        )
+    return result

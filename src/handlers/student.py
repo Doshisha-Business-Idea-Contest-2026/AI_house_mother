@@ -56,6 +56,7 @@ from src.templates.quick_reply import (
     post_share_parent_quick_reply,
     profile_start_quick_reply,
     profile_view_quick_reply,
+    want_to_do_menu_quick_reply,
 )
 
 logger = logging.getLogger(__name__)
@@ -403,8 +404,15 @@ def _activity_quick_reply() -> QuickReply:
     return QuickReply(items=list(ACTIVITY_QUICK_REPLY_ITEMS))
 
 
-def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
-    """Trigger the "やりたいこと相談" flow (FR-S4)."""
+def _require_profile_or_prompt(
+    event: MessageEvent | PostbackEvent,
+) -> dict[str, Any] | None:
+    """Return the caller's profile, or reply with the registration nudge.
+
+    Shared gate for the want-to-do hub and both of its branches. Returns
+    ``None`` (after sending a reply) when the profile is missing so the
+    caller can bail out early.
+    """
     user_id = event.source.user_id
     profile = profiles.get_profile(user_id)
     if profile is None:
@@ -414,8 +422,55 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
             quick_reply=profile_start_quick_reply(),
             sender="system",
         )
+        return None
+    return profile
+
+
+def start_want_to_do_menu(event: MessageEvent | PostbackEvent) -> None:
+    """Show the "やりたいこと相談" hub (docs/04 §4.3).
+
+    No Gemini call here: the student first picks an angle (other
+    students' efforts vs local events) via Quick Reply, and only the
+    chosen branch invokes Gemini.
+    """
+    if _require_profile_or_prompt(event) is None:
+        return
+    reply_text(
+        event.reply_token,
+        "どんな切り口で探しますか？🔎\n先輩や仲間の取り組みからも、地域のイベントからも探せます。",
+        quick_reply=want_to_do_menu_quick_reply(),
+        sender="friendly",
+    )
+
+
+def _send_activity_carousel(
+    user_id: str, activities: list[dict[str, Any]], alt_text: str
+) -> None:
+    """Persist proposals and push the carousel + follow-up Quick Reply.
+
+    Shared tail for both want-to-do branches. ``activities`` must be
+    non-empty (branches fall back to seed before calling this).
+    """
+    keys = activity_store.remember(user_id, activities)
+    session.set_state(user_id, "activity.viewing", activity_keys=keys)
+
+    flex = build_activity_carousel(activities, keys)
+    push_flex(user_id, alt_text=alt_text, contents=flex, sender="friendly")
+    push_text(
+        user_id,
+        "気になる提案があれば、カード内のボタンを押してください👇",
+        quick_reply=_activity_quick_reply(),
+        sender="friendly",
+    )
+
+
+def handle_want_events(event: MessageEvent | PostbackEvent) -> None:
+    """Want-to-do branch A: propose local events/activities (FR-S4)."""
+    profile = _require_profile_or_prompt(event)
+    if profile is None:
         return
 
+    user_id = event.source.user_id
     # Show the LINE loading indicator so the user sees a native
     # "typing" animation while we wait for Gemini. reply_token is
     # intentionally left unused; the carousel goes out via push below.
@@ -436,21 +491,42 @@ def handle_want_to_do(event: MessageEvent | PostbackEvent) -> None:
         )
         return
 
-    keys = activity_store.remember(user_id, activities)
-    session.set_state(user_id, "activity.viewing", activity_keys=keys)
-
-    flex = build_activity_carousel(activities, keys)
-    push_flex(
-        user_id,
-        alt_text="🎯 やりたいこと相談：あなたへのおすすめ",
-        contents=flex,
-        sender="friendly",
+    _send_activity_carousel(
+        user_id, activities, alt_text="🎯 やりたいこと相談：あなたへのおすすめ"
     )
-    push_text(
-        user_id,
-        "気になる提案があれば、カード内のボタンを押してください👇",
-        quick_reply=_activity_quick_reply(),
-        sender="friendly",
+
+
+def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
+    """Want-to-do branch B: propose from other students' efforts (FR-S4).
+
+    Uses senior posts (seed) plus anonymized runtime experience posts.
+    Even with zero runtime posts, Gemini/the seed fallback still returns
+    proposals, so an empty result only happens on a hard failure.
+    """
+    profile = _require_profile_or_prompt(event)
+    if profile is None:
+        return
+
+    user_id = event.source.user_id
+    show_loading(user_id)
+
+    try:
+        activities = gemini.propose_from_student_efforts(profile)
+    except Exception:
+        logger.exception("propose_from_student_efforts crashed")
+        activities = []
+
+    if not activities:
+        push_text(
+            user_id,
+            "うまく提案を思いつけませんでした。少し時間を空けてもう一度お試しください🙇",
+            quick_reply=main_menu_quick_reply("student"),
+            sender="friendly",
+        )
+        return
+
+    _send_activity_carousel(
+        user_id, activities, alt_text="🎯 やりたいこと相談：先輩・仲間の取り組み"
     )
 
 

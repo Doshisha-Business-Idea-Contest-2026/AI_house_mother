@@ -156,7 +156,7 @@ def handle_text(event: MessageEvent) -> None:
         session.clear_state(user_id)
         if not _require_role(event, user_id, "student"):
             return
-        student.handle_want_to_do(event)
+        student.start_want_to_do_menu(event)
         return
 
     if text in LIFE_COMMANDS:
