@@ -54,13 +54,19 @@ def _load() -> dict[str, Any]:
 
 
 def is_expired(expires_at_iso: str) -> bool:
-    """Return ``True`` when ``expires_at_iso`` is in the past."""
+    """Return ``True`` when ``expires_at_iso`` is in the past.
+
+    Malformed strings (``ValueError`` from :func:`datetime.fromisoformat`)
+    and naive datetimes that cannot be compared to the JST-aware clock
+    (``TypeError``) are both treated as expired so callers never see the
+    exception propagate.
+    """
     try:
         expires_at = datetime.fromisoformat(expires_at_iso)
-    except ValueError:
-        logger.warning("Invalid expires_at: %s", expires_at_iso)
+        return expires_at <= _now_jst()
+    except (ValueError, TypeError):
+        logger.warning("Invalid or naive expires_at: %s", expires_at_iso)
         return True
-    return expires_at <= _now_jst()
 
 
 def generate_code() -> str:
