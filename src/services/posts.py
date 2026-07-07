@@ -32,6 +32,10 @@ CATEGORY_VALUES: tuple[str, ...] = (
     "store",
     "medical",
     "tips",
+    "study",
+    "money",
+    "social",
+    "effort",
     "other",
 )
 MAX_TITLE_LEN = 40

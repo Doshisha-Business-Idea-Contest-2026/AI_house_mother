@@ -504,12 +504,16 @@ seed の store / area レコードを回答に含める場合は、Bot 応答に
 | post.share_parent | 保護者に「頑張ったこと」として共有しますか？ | Quick Reply（👨‍👩‍👧 共有する / 🙅 共有しない） |
 | post.confirm | 内容確認 → 投稿する / やり直す | Quick Reply（✅ 投稿する / 🔄 やり直す） |
 
-**カテゴリ Quick Reply**（6 カテゴリ + キャンセル）:
+**カテゴリ Quick Reply**（10 カテゴリ + キャンセル = 11 項目、LINE 上限 13 以内）:
 - 🏛️ 地域イベント (`event`)
 - 🧹 ボランティア (`volunteer`)
 - 🍜 お店・カフェ (`store`)
 - 🏥 病院・薬局 (`medical`)
 - 📋 手続き・生活の知恵 (`tips`)
+- 🎓 学び・勉強 (`study`)
+- 💰 バイト・お金 (`money`)
+- 🤝 サークル・交友 (`social`)
+- 💪 がんばったこと (`effort`)
 - ✨ その他 (`other`)
 - 🚫 キャンセル
 
@@ -804,4 +808,5 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
 | 2026-07-06 | §3.6 Loading indicator による中間応答の可視化を新設（Day 4 T4.11 の docs-first）: SDK/API 仕様・20 秒既定・Sender switch との直交性・適用 3 handler の対応表 | kmch4n |
 | 2026-07-06 | §2.2 メインメニューに「リッチメニュー本実装は決勝プレゼン後、当面 Quick Reply モックで運用」を追記 | kmch4n |
 | 2026-07-07 | §4.4 生活相談に「回答書式」小節を新設し構造化プレーンテキスト（結論先出し・「・」箇条書き・空行区切り・Markdown 不使用・単一バブル維持）を規定、フロー例を差し替え（Issue #13 の docs-first。`docs/06_ai_spec.md §3`/§4.2 と同期） | anluck-m |
+| 2026-07-07 | §4.5 経験投稿のカテゴリ Quick Reply に `study`/`money`/`social`/`effort` の 4 種を追加（6→10 カテゴリ、`tips` 後・`other` 前。Issue #14 の docs-first 更新） | anluck-m |
 | 2026-07-08 | §4.4 実在情報鮮度注記を単一テキストバブル運用に整合させて書き直し（Phase 3）: 生活相談は `_summarise_stores` / `_summarise_areas` が付加する `[情報鮮度: ...]` をプロンプトで Gemini に強制引用させる方式に、Flex 側は §4.3 やりたいこと相談 bubble の汎用注記 box 方式に分離 | kmch4n |
