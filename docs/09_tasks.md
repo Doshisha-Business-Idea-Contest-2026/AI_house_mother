@@ -116,18 +116,18 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T2.1 Seed データ作成
 
-**目的**: `data/seed/` 配下の架空データを 30 + 15 + 10 + 20 件投入
+**目的**: `data/seed/` 配下に seed データを投入する。地域・イベント・店舗は同志社今出川周辺の**実在情報**、先輩投稿・デモプロフィールは**架空**（詳細ポリシーは `.codex/rules/project_rules.md` の「データ運用」節参照）
 
 **成果物**:
-- `data/seed/areas.json`（30 件）
-- `data/seed/stores.json`（15 件）
-- `data/seed/events.json`（10 件）
-- `data/seed/senior_posts.json`（20 件）
-- `data/seed/demo_profiles.json`（3 件）
+- `data/seed/areas.json`（30 件、実在: 公共施設・行政・大学施設。`last_verified_at` を全レコードに必須）
+- `data/seed/stores.json`（15 件、実在: 民間実名店舗。`data_freshness_note` と `source_url` を全レコードに必須）
+- `data/seed/events.json`（10 件、実在: 大学公式・行政主催。`last_verified_at` を全レコードに必須、`schedule` は「毎年◯月」等の再帰的表現優先）
+- `data/seed/senior_posts.json`（20 件、架空: プライバシー保護のため）
+- `data/seed/demo_profiles.json`（3〜5 件、架空: 実在人物の情報は使用しない）
 
-**完了基準**: `05_data_model.md` の JSON スキーマに沿った内容、京都・同志社周辺の内容として妥当
+**完了基準**: `05_data_model.md` の JSON スキーマに沿った内容、同志社今出川キャンパス周辺（京都市上京区・中京区・北区）に地理的に集中している
 
-**推定**: 2 時間（一気に書く）
+**推定**: 実在情報の verify を伴うため、初回は 4〜6 時間程度を想定
 
 ### T2.2 学生プロフィール登録実装
 

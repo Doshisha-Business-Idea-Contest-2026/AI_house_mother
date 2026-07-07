@@ -30,7 +30,7 @@
 
 ### 3.2 サーバー状態
 
-- `data/seed/*.json` は完全に投入済み（地域 30、店舗 15、イベント 10、先輩投稿 20）
+- `data/seed/*.json` は完全に投入済み（地域 30・イベント 10・店舗 15 は同志社今出川周辺の実在情報、先輩投稿 20 は架空）
 - `data/users.json` / `profiles.json` / `posts.json` / `invitations.json` / `parent_links.json` はデモ直前に空に戻す
 - `systemctl status ai_house_mother.service` で稼働確認
 - `curl https://linebot.kmchan.jp/ai_house_mother/health` で疎通確認
@@ -207,7 +207,7 @@ python scripts/push_monthly_reports.py --month 2026-06 --force
 
 ### Q4. プライバシー・個人情報の扱いは？
 
-**回答**: MVP はデモ用で架空データのみを使っています。本番運用時は法務・専門家に確認して、同意フロー・データ削除ポリシーを整備する必要があると認識しています。
+**回答**: データ種別ごとに扱いを分けています。**学生・保護者・先輩の個人情報は架空**で、実在人物の生活情報を Bot に扱わせません。一方、**地域情報・イベント・店舗の seed は同志社今出川周辺の実在情報**を使い、本番運用に近い体験を提供しています。実在店舗については「情報が古い可能性がある」旨を Bot が必ず併記します（NFR-Truth-4）。seed の実在情報は定期的に verify（`last_verified_at` / `data_freshness_note` を更新）する運用を想定しており、本番運用時には法務・専門家確認のうえ、店舗側同意フロー・データ削除ポリシーを整備する予定です。
 
 ### Q4.5. ハルシネーション対策は？（NFR-Truth-1/2/3）
 
