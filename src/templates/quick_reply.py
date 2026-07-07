@@ -109,6 +109,40 @@ def cancel_quick_reply() -> QuickReply:
     )
 
 
+def want_to_do_menu_quick_reply() -> QuickReply:
+    """Hub Quick Reply for the "やりたいこと相談" flow (docs/04 §4.3).
+
+    Lets the student pick an angle before any Gemini call:
+    other students' efforts (``menu:want_students``) or local events
+    (``menu:want_events``). A third item returns to the main menu.
+    """
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="👥 ほかの学生の取り組みを見る",
+                    data="menu:want_students",
+                    display_text="👥 ほかの学生の取り組みを見る",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🏛️ 地域イベントを見る",
+                    data="menu:want_events",
+                    display_text="🏛️ 地域イベントを見る",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="🏠 メインメニュー",
+                    data="menu:main",
+                    display_text="🏠 メインメニュー",
+                )
+            ),
+        ]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Profile flow
 # ---------------------------------------------------------------------------

@@ -158,6 +158,47 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - `temperature`: 0.8（多様性を出す）
 - `max_output_tokens`: 800
 
+#### 4.1.1 「ほかの学生の取り組み」ブランチ（FR-S4 / §4.3 ハブのブランチ B）
+
+**目的**: やりたいこと相談ハブで「👥 ほかの学生の取り組みを見る」を選んだ場合に、
+先輩投稿と他の学生の経験投稿（匿名）を素材に 2〜3 件の活動提案を JSON で返す。SECI
+モデルの「実践知の継承」を体現する導線。出力形式・後処理・Flex 変換は §4.1 と共通。
+
+**呼び出しコンテキスト**（§4.1 との差分）:
+- 学生プロフィール
+- 先輩投稿（`senior_posts.json`、`author_pseudonym` のみ）
+- 他の学生の経験投稿（`data/posts.json` を匿名化した allow-list。title / body / area /
+  category / created_at のみ。`line_user_id` 等は渡さない。§4.2 の匿名化ポリシー準拠）
+
+**プロンプト構造**（差分のみ）:
+
+```
+{system_prompt_common}
+
+【今回の依頼】
+学生が「ほかの学生の取り組みを知りたい」と言っています。
+以下の先輩投稿と、同じマンションの学生の経験投稿（匿名）を素材に、
+その学生が真似したり参加したりできる活動を 2〜3 件提案してください。
+
+【学生プロフィール】
+{profile_summary}
+
+【先輩の体験投稿】
+{senior_posts_summary}
+
+【同じマンションの学生の経験投稿（匿名）】
+{student_posts_summary}
+
+【出力形式】
+（§4.1 と同一の JSON 配列。reference_type は senior_post / generated のいずれか）
+```
+
+- 学生投稿は匿名情報として扱い、投稿者の名前・学年・大学などを推測して記載しない。
+- 実行時の学生投稿が 0 件でも先輩投稿 seed から必ず 2〜3 件を返す
+  （フォールバックは `reference_type: "senior_post"`）。
+- `reference_type` は素材由来を優先し `senior_post`、AI が組み立てた場合は `generated`。
+- パラメータは §4.1 と同じ（`temperature` 0.8 / `max_output_tokens` 800）。
+
 ### 4.2 生活相談（FR-S5）
 
 **目的**: 生活の困りごとに、地域情報と先輩投稿を参照して回答する。

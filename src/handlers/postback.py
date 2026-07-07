@@ -174,7 +174,21 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
         if role != "student":
             _reply_wrong_role(event, role, "student")
             return
-        student.handle_want_to_do(event)
+        student.start_want_to_do_menu(event)
+        return
+
+    if action == "want_events":
+        if role != "student":
+            _reply_wrong_role(event, role, "student")
+            return
+        student.handle_want_events(event)
+        return
+
+    if action == "want_students":
+        if role != "student":
+            _reply_wrong_role(event, role, "student")
+            return
+        student.handle_want_students(event)
         return
 
     if action == "life":

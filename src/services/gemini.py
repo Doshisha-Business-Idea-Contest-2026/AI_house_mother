@@ -23,7 +23,7 @@ import google.generativeai as genai
 from google.api_core import exceptions as gexc
 
 from src.config import GEMINI_API_KEY, GEMINI_MOCK_MODE, GEMINI_MODEL
-from src.services import prompts, seed
+from src.services import posts, prompts, seed
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +183,66 @@ def propose_activities(
         )
 
     # Shuffle to avoid always-same order between calls
+    random.shuffle(activities)
+    return activities[:3]
+
+
+def propose_from_student_efforts(
+    profile: dict[str, Any] | None,
+    *,
+    fallback_count: int = 3,
+) -> list[dict[str, Any]]:
+    """Return 2–3 activity dicts based on other students' efforts.
+
+    Backs the "ほかの学生の取り組み" branch (docs/06 §4.1.1). Material is
+    senior post seed plus anonymized runtime posts
+    (:func:`posts.list_all_for_context`). Falls back to senior-post seed
+    on failure or when ``GEMINI_MOCK_MODE`` is on.
+    """
+    profile = profile or {}
+
+    if GEMINI_MOCK_MODE:
+        logger.info("[GEMINI_MOCK] propose_from_student_efforts returning seed fallback")
+        return seed.pick_senior_post_activities(profile, count=fallback_count)
+
+    interests: list[str] = profile.get("interests") or []
+    prompt = prompts.build_student_efforts_prompt(
+        profile=profile,
+        senior_posts=seed.get_senior_posts_by_keywords(interests),
+        student_posts=posts.list_all_for_context(),
+    )
+
+    try:
+        cl = _build_client()
+        response = cl.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.8,
+                "max_output_tokens": 800,
+                "response_mime_type": "application/json",
+                "response_schema": _ACTIVITY_JSON_SCHEMA,
+            },
+            request_options={"timeout": DEFAULT_TIMEOUT_S},
+        )
+        raw = (response.text or "").strip()
+        activities = _parse_activity_json(raw)
+    except gexc.ResourceExhausted:
+        logger.warning("[GEMINI_FALLBACK] rate limit on propose_from_student_efforts")
+        activities = []
+    except gexc.DeadlineExceeded:
+        logger.warning("[GEMINI_FALLBACK] timeout on propose_from_student_efforts")
+        activities = []
+    except Exception:
+        logger.exception("[GEMINI_FALLBACK] propose_from_student_efforts failed")
+        activities = []
+
+    if not activities:
+        activities = seed.pick_senior_post_activities(profile, count=fallback_count)
+    elif len(activities) < 2:
+        activities.extend(
+            seed.pick_senior_post_activities(profile, count=2 - len(activities))
+        )
+
     random.shuffle(activities)
     return activities[:3]
 

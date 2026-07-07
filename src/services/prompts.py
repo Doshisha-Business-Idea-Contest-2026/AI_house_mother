@@ -155,6 +155,41 @@ def build_activity_prompt(
     )
 
 
+def build_student_efforts_prompt(
+    profile: dict[str, Any] | None,
+    senior_posts: list[dict[str, Any]],
+    student_posts: list[dict[str, Any]],
+) -> str:
+    """Prompt used by ``propose_from_student_efforts`` (docs/06 §4.1.1).
+
+    ``student_posts`` are the anonymized runtime posts from
+    :func:`posts.list_all_for_context`. Senior posts expose only
+    ``author_pseudonym``. The output schema matches
+    :func:`build_activity_prompt`, but the material is limited to what
+    other students / seniors have actually done, and ``reference_type``
+    is constrained to ``senior_post`` / ``generated``.
+    """
+    return (
+        SYSTEM_PROMPT_COMMON
+        + "\n\n【今回の依頼】\n"
+        "学生が「ほかの学生の取り組みを知りたい」と言っています。\n"
+        "以下の先輩投稿と、同じマンションの学生の経験投稿（匿名）を素材に、\n"
+        "その学生が真似したり参加したりできる活動を 2〜3 件提案してください。\n\n"
+        "【学生プロフィール】\n"
+        + _summarise_profile(profile)
+        + "\n\n【先輩の体験投稿】\n"
+        + _summarise_senior_posts(senior_posts)
+        + "\n\n【同じマンションの学生の経験投稿（匿名）】\n"
+        + _summarise_student_posts(student_posts)
+        + "\n\n【出力形式】\n"
+        "以下の JSON 配列のみを返してください。各要素は必ず title/summary/why_recommend/"
+        "reference_type を含めます。\n"
+        "reference_type は素材由来なら senior_post、AI が組み立てた場合は generated。\n"
+        "学生投稿は匿名情報なので、投稿者の名前・学年・大学などを推測して記載しないでください。\n"
+        "2〜3 件、必ず出力してください。\n"
+    )
+
+
 def build_life_consultation_prompt(
     profile: dict[str, Any] | None,
     user_message: str,
