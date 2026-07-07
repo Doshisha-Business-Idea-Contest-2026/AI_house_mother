@@ -163,7 +163,7 @@ def save_json(relative_path: str, data: Any) -> None:
 | --- | --- | --- |
 | `post_id` | string | `P` + 5 桁連番 |
 | `line_user_id` | string | 投稿者（学生） |
-| `category` | string | `event` \| `volunteer` \| `store` \| `medical` \| `tips` \| `other` |
+| `category` | string | `event` \| `volunteer` \| `store` \| `medical` \| `tips` \| `study` \| `money` \| `social` \| `effort` \| `other` |
 | `title` | string | タイトル（最大 40 文字） |
 | `body` | string | 本文（最大 500 文字） |
 | `area` | string \| null | 地名・店名等（自由入力、`なし`/`無し`/`skip`/空文字は null に正規化） |
@@ -579,7 +579,7 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
 1. `parent_links.json` から連携先学生を特定（`list_students_for_parent` / `list_all_active_pairs`）
 2. `posts.json` から `share_with_parent=true` かつ対象月の投稿を抽出（`posts.list_month_shared`）
 3. 最大 5 件を **単一 Flex バブル**にリスト表示（カルーセルではない）
-4. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / ✨ other）を付ける
+4. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / 🎓 study / 💰 money / 🤝 social / 💪 effort / ✨ other）を付ける
 
 ### 7.1 月境界判定ヘルパー
 
@@ -674,3 +674,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-06 | §4.10 session_activities.json スキーマと reference_type enum を追加、ファイル配置ツリーに session_activities.json / demo_profiles.json を反映 | kmch4n |
 | 2026-07-06 | Day 3 家族ループ用: §2 ツリーに monthly_report_state.json、§4.3 に post_id 採番方式と並行性、§4.4 に衝突チェック 5 回リトライと再発行 invalidate の pseudo コード、§4.11 monthly_report_state.json スキーマ新設、§7 に月境界判定ヘルパーと share_with_parent 不変条件 | kmch4n |
 | 2026-07-06 | T4.10 学生投稿継承の docs-first: §4.3 posts.json に匿名化継承ポリシーと 5-field allow-list、§8「経験投稿の他学生への継承」を新設（匿名化アクセサ list_all_for_context と Zero-context 影響） | kmch4n |
+| 2026-07-07 | posts.json `category` enum と月次レポート絵文字マッピングに `study`/`money`/`social`/`effort` の 4 種を追加（Issue #14 の docs-first 更新） | anluck-m |
