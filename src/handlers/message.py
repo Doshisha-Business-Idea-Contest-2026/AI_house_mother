@@ -36,7 +36,6 @@ from src.templates.flex.welcome import build_welcome_message
 from src.templates.quick_reply import (
     cancel_quick_reply,
     main_menu_quick_reply,
-    profile_start_quick_reply,
 )
 
 logger = logging.getLogger(__name__)

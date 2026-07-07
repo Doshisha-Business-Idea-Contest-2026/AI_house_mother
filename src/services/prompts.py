@@ -65,7 +65,8 @@ def _summarise_profile(profile: dict[str, Any] | None) -> str:
 
 def _summarise_areas(areas: list[dict[str, Any]]) -> str:
     return "\n".join(
-        f"- {a['name']} ({a['category']}): {a['description']}" for a in areas
+        f"- {a['name']} ({a.get('category', '')}): {a.get('description', '')}"
+        for a in areas
     )
 
 
