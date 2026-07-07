@@ -206,18 +206,21 @@ Flex Message ビルダー関数。それぞれ引数を受け取って FlexMessa
 2. Apache → localhost:8084/ai_house_mother/callback
 3. FastAPI router.py: 署名検証、event 抽出
 4. handlers/postback.py: data="menu:want_to_do" を検知
-5. handlers/student.py::handle_want_to_do():
-   5.1 session.get(user_id) でステート取得
-   5.2 storage.load_profile(user_id) でプロフィール取得
-   5.3 プロフィール未登録なら FR-S2 に誘導
-   5.4 storage.load_seed_areas/stores/events/senior_posts でコンテキスト取得
-   5.5 services/gemini.py::propose_activities(profile, context) 呼び出し
+5. handlers/student.py::start_want_to_do_menu():
+   5.1 storage.load_profile(user_id) でプロフィール取得（未登録なら FR-S2 に誘導）
+   5.2 切り口を選ぶハブ Quick Reply（👥 ほかの学生の取り組み / 🏛️ 地域イベント）を
+       reply_token で即応答（Gemini 未呼び出し）
+6. handlers/postback.py: data="menu:want_events"（または "menu:want_students"）を検知
+7. handlers/student.py::handle_want_events()（ブランチ A の例）:
+   7.1 storage.load_profile(user_id) でプロフィール取得
+   7.2 storage.load_seed_areas/stores/events/senior_posts でコンテキスト取得
+   7.3 services/gemini.py::propose_activities(profile) 呼び出し
        - services/prompts.py::build_activity_prompt() でプロンプト生成
-       - Gemini SDK 呼び出し
-       - JSON パース
-   5.6 templates/flex/activity_carousel.py で Flex Message 構築
-   5.7 services/line_reply.py::reply(reply_token, flex_message)
-6. LINE Platform → LINE User に配信
+       - Gemini SDK 呼び出し → JSON パース
+       （ブランチ B は propose_from_student_efforts + build_student_efforts_prompt）
+   7.4 templates/flex/activity_carousel.py で Flex Message 構築
+   7.5 services/line_reply.py::push_flex(user_id, flex_message)
+8. LINE Platform → LINE User に配信
 ```
 
 ### 5.2 保護者の連携フロー
