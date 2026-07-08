@@ -10,6 +10,7 @@ Supported prefixes:
 - ``menu:*``                  — main menu / navigation
 - ``profile:*``               — profile registration flow
 - ``activity:*``              — activity carousel detail / participation
+- ``sponsored:*``             — sponsored PR interest tracking (FR-S9)
 - ``invite:regenerate``       — student invitation code re-issue
 - ``post:*``                  — experience posting flow
 - ``link:*``                  — parent link entry / confirmation
@@ -90,6 +91,14 @@ def handle_postback(event: PostbackEvent) -> None:
         _handle_activity(event, data)
         return
 
+    if data.startswith("sponsored:"):
+        role = users.get_role(user_id)
+        if role != "student":
+            _reply_wrong_role(event, role, "student")
+            return
+        _handle_sponsored(event, data)
+        return
+
     if data.startswith("invite:"):
         role = users.get_role(user_id)
         if role != "student":
@@ -141,6 +150,18 @@ def _handle_activity(event: PostbackEvent, data: str) -> None:
         return
 
     logger.warning("Unknown activity postback: %s", data)
+    _reply_placeholder(
+        event, users.get_role(event.source.user_id), "未対応の操作です。"
+    )
+
+
+def _handle_sponsored(event: PostbackEvent, data: str) -> None:
+    if data.startswith("sponsored:interest:"):
+        sponsor_id = data.removeprefix("sponsored:interest:")
+        student.handle_sponsored_interest(event, sponsor_id)
+        return
+
+    logger.warning("Unknown sponsored postback: %s", data)
     _reply_placeholder(
         event, users.get_role(event.source.user_id), "未対応の操作です。"
     )

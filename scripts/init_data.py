@@ -28,6 +28,7 @@ INITIAL_FILES: dict[str, Any] = {
     "parent_links.json": {"links": []},
     "session_activities.json": {"activities": {}},
     "monthly_report_state.json": {"last_batch": None},
+    "sponsored_engagement.json": {"events": []},
 }
 
 

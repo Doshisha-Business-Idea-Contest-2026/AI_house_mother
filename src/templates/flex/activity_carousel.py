@@ -21,6 +21,7 @@ _CATEGORY_COLORS: dict[str, str] = {
     "senior_post": "#607D8B",  # slate
     "generated": DEFAULT_COLOR,
     "static_fallback": "#795548",  # brown
+    "sponsored": "#C9A227",  # gold — corporate PR slot (FR-S9)
 }
 
 MAX_BUBBLES = 3
@@ -32,6 +33,11 @@ MAX_BUBBLES = 3
 _FRESHNESS_NOTE_TYPES: frozenset[str] = frozenset({"store", "event", "volunteer"})
 _FRESHNESS_NOTE_TEXT = "※情報は変わっている可能性があります"
 
+# NFR-Truth / docs/04_functional_spec.md §4.3: sponsored PR は通常提案と
+# 一目で区別できるようゴールドヘッダー＋バッジ＋開示文を必ず添える。
+_SPONSORED_BADGE_TEXT = "🏢 PR（協賛）"
+_SPONSORED_DISCLOSURE_TEXT = "この案内は協賛企業からの提供です"
+
 
 def get_activity_header_color(reference_type: str) -> str:
     """Return the header colour used for ``reference_type``."""
@@ -39,7 +45,9 @@ def get_activity_header_color(reference_type: str) -> str:
 
 
 def build_activity_carousel(
-    activities: list[dict[str, Any]], keys: list[str]
+    activities: list[dict[str, Any]],
+    keys: list[str],
+    sponsored: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a Flex carousel JSON containing up to three activity bubbles.
 
@@ -49,6 +57,10 @@ def build_activity_carousel(
         keys: A parallel list of short hash keys used to identify each
             activity in postback data. Must be the same length as
             ``activities``.
+        sponsored: An optional sponsored PR entry (FR-S9). When present it
+            is prepended as a distinct gold bubble ahead of the organic
+            proposals, so the carousel holds up to ``MAX_BUBBLES + 1``
+            bubbles. See ``docs/04_functional_spec.md §4.3``.
     """
     if len(activities) != len(keys):
         raise ValueError("activities and keys must have the same length")
@@ -57,6 +69,9 @@ def build_activity_carousel(
         _build_bubble(index=i + 1, activity=activities[i], key=keys[i])
         for i in range(min(len(activities), MAX_BUBBLES))
     ]
+
+    if sponsored is not None:
+        bubbles.insert(0, _build_sponsored_bubble(sponsored))
 
     if len(bubbles) == 1:
         return bubbles[0]
@@ -219,5 +234,167 @@ def _build_bubble(
                     },
                 },
             ],
+        },
+    }
+
+
+def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
+    """Build the gold PR bubble for a sponsored entry (FR-S9).
+
+    Unlike organic proposals this bubble carries a "🏢 PR（協賛）" badge,
+    the sponsor's name, a disclosure line, the standard freshness caveat,
+    and a URI apply button plus an "興味あり" postback for click tracking.
+    Text is rendered verbatim from the seed (docs/04 §4.3).
+    """
+    color = _CATEGORY_COLORS["sponsored"]
+    sponsor_id = sponsored.get("sponsor_id") or ""
+    company = sponsored.get("company_name") or ""
+    title = sponsored.get("title") or "協賛イベント"
+    summary = sponsored.get("summary") or ""
+    apply_url = sponsored.get("apply_url") or ""
+    event_date = sponsored.get("event_date") or ""
+    deadline = sponsored.get("deadline") or ""
+
+    header_contents: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": _SPONSORED_BADGE_TEXT,
+            "color": "#ffffff",
+            "size": "sm",
+            "weight": "bold",
+        },
+    ]
+    if company:
+        header_contents.append(
+            {
+                "type": "text",
+                "text": company,
+                "color": "#ffffff",
+                "size": "xs",
+                "wrap": True,
+            }
+        )
+    header_contents.append(
+        {
+            "type": "text",
+            "text": title,
+            "color": "#ffffff",
+            "size": "xl",
+            "weight": "bold",
+            "wrap": True,
+        }
+    )
+
+    body_contents: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": summary,
+            "wrap": True,
+            "size": "sm",
+        }
+    ]
+
+    info_lines: list[dict[str, Any]] = []
+    if event_date:
+        info_lines.append(
+            {
+                "type": "text",
+                "text": f"📅 開催: {event_date}",
+                "size": "sm",
+                "color": "#666666",
+                "wrap": True,
+            }
+        )
+    if deadline:
+        info_lines.append(
+            {
+                "type": "text",
+                "text": f"⏳ 締切: {deadline}",
+                "size": "sm",
+                "color": "#666666",
+                "wrap": True,
+            }
+        )
+    if info_lines:
+        body_contents.append({"type": "separator", "color": "#e0e0e0"})
+        body_contents.append(
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "xs",
+                "contents": info_lines,
+            }
+        )
+
+    body_contents.append({"type": "separator", "color": "#e0e0e0"})
+    body_contents.append(
+        {
+            "type": "text",
+            "text": _SPONSORED_DISCLOSURE_TEXT,
+            "wrap": True,
+            "size": "xs",
+            "color": "#999999",
+        }
+    )
+    body_contents.append(
+        {
+            "type": "text",
+            "text": _FRESHNESS_NOTE_TEXT,
+            "wrap": True,
+            "size": "xxs",
+            "color": "#aaaaaa",
+        }
+    )
+
+    footer_contents: list[dict[str, Any]] = []
+    if apply_url:
+        footer_contents.append(
+            {
+                "type": "button",
+                "style": "primary",
+                "color": color,
+                "height": "sm",
+                "action": {
+                    "type": "uri",
+                    "label": "詳細・応募はこちら",
+                    "uri": apply_url,
+                },
+            }
+        )
+    footer_contents.append(
+        {
+            "type": "button",
+            "style": "secondary",
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "興味あり",
+                "data": f"sponsored:interest:{sponsor_id}",
+                "displayText": f"「{title}」に興味あり",
+            },
+        }
+    )
+
+    return {
+        "type": "bubble",
+        "size": "mega",
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": color,
+            "paddingAll": "16px",
+            "contents": header_contents,
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "md",
+            "contents": body_contents,
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "sm",
+            "contents": footer_contents,
         },
     }
