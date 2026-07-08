@@ -502,9 +502,9 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
             "event_date": "2026-11-15",
             "deadline": "2026-10-31",
             "target": {
-                "faculties": ["経済", "商", "工", "情報"],
-                "grades": [3, 4],
-                "interest_tags": ["起業", "プログラミング", "ものづくり"]
+                "faculties": ["経済", "商"],
+                "grades": ["3", "4"],
+                "interest_tags": ["学問・研究", "ものづくり"]
             },
             "data_freshness_note": "2026-07 時点。募集状況は変更の可能性あり",
             "active": true
@@ -525,13 +525,13 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 | `event_date` | string | 開催日（`"YYYY-MM-DD"` または再帰表現。空文字許容） |
 | `deadline` | string | 応募締切（`"YYYY-MM-DD"`。空文字許容） |
 | `target` | object | マッチング条件。下記参照 |
-| `target.faculties` | list[str] | 対象学部（部分一致）。空リストは全学部対象 |
-| `target.grades` | list[int] | 対象学年。空リストは全学年対象 |
-| `target.interest_tags` | list[str] | 対象の興味タグ（プロフィール `interests` と突き合わせ） |
+| `target.faculties` | list[str] | 対象学部（部分一致。seed `"経済"` ⊂ profile `"経済学部"`）。空リストは全学部対象 |
+| `target.grades` | list[str] | 対象学年（プロフィール `grade` と同じ文字列。`"1"`〜`"4"` / `"M1"` / `"M2"`）。空リストは全学年対象 |
+| `target.interest_tags` | list[str] | 対象の興味タグ。プロフィール `interests` の語彙（`src/templates/quick_reply.py` の `INTEREST_TAGS`）と**完全一致**で突き合わせるため、その語彙値をそのまま用いる |
 | `data_freshness_note` | string | 鮮度注記（必須） |
 | `active` | bool | `true` のみ掲載候補。掲載停止は `false` に切り替える |
 
-**マッチング**（`04_functional_spec.md §4.3`）: `active: true` の案件を学生プロフィールの `faculty` / `grade` / `interests` と突き合わせ、合致スコア最上位 1 件を選ぶ。合致なしなら掲載しない。
+**マッチング**（`04_functional_spec.md §4.3`）: `active: true` の案件を学生プロフィールの `faculty` / `grade` / `interests` と突き合わせ、合致スコア最上位 1 件を選ぶ。スコアは `faculty` 部分一致で +1、`grade` 一致で +1、`interest_tags` の重なり件数分を加点する。`target` の各フィールドが空リストなら「全対象」とみなし、その軸では加点しない。スコアが 0（どの軸も一致しない）の案件は掲載しない（的外れな広告を強制しない）。同点は seed の並び順で先頭を採る。
 
 ### 4.13 sponsored_engagement.json（ランタイム、PR クリック計測）
 
@@ -755,3 +755,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-06 | T4.10 学生投稿継承の docs-first: §4.3 posts.json に匿名化継承ポリシーと 5-field allow-list、§8「経験投稿の他学生への継承」を新設（匿名化アクセサ list_all_for_context と Zero-context 影響） | kmch4n |
 | 2026-07-07 | posts.json `category` enum と月次レポート絵文字マッピングに `study`/`money`/`social`/`effort` の 4 種を追加（Issue #14 の docs-first 更新） | anluck-m |
 | 2026-07-08 | 企業スポンサードPR（FR-S9）の docs-first: §4.12 sponsored.json（seed、架空）と §4.13 sponsored_engagement.json（ランタイム、クリック計測）を新設、§4.10.1 reference_type enum に `sponsored`（注入型）を追加、§2 ツリー・gitignore・init 対象を 8 種に更新 | kmch4n |
+| 2026-07-08 | FR-S9 実装整合: §4.12 `target.grades` を list[int]→list[str]（プロフィール `grade` は `"M1"`/`"M2"` を含む文字列）、`interest_tags` を `INTEREST_TAGS` 語彙に整合、マッチングにスコア計算式（faculty +1 / grade +1 / interest 重なり件数、スコア 0 は非表示）を明記 | kmch4n |
