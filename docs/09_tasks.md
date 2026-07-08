@@ -523,6 +523,33 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 **推定**: 45 分
 
+### T4.12 企業スポンサードPR 実装（FR-S9、第3の収益源）
+
+**目的**: `docs/04_functional_spec.md §4.3`・`docs/05_data_model.md §4.12/§4.13` で確定した「やりたいこと相談に協賛イベントを PR 枠として決定論的に挿入する」機能を実装する。保護者サブスク・店舗掲載料に次ぐ第3の収益源（`docs/00_product_context.md §10.7`）を実演で示す。
+
+**成果物**:
+
+- **seed**: `data/seed/sponsored.json`（架空の協賛企業イベント 2〜3 件。就活・選考直結ハッカソン・ビジネスアイデア大会等。`§4.12` スキーマ準拠、鮮度注記必須）。デモ用に学年が合致するプロフィールを 1 つ用意
+- **マッチング挿入**: `src/services/sponsored.py` を新設。`active: true` の案件を学生プロフィール（`faculty` / `grade` / `interests`）で突き合わせ、合致スコア最上位 1 件を返す（合致なしは None）
+- **Flex 表示**: `src/templates/flex/activity_carousel.py` に `reference_type: "sponsored"` を追加（ゴールド系ヘッダー色 ＋「🏢 PR（協賛）」バッジ ＋ 開示文「この案内は協賛企業からの提供です」＋ 鮮度注記）。ボタンは URI「詳細・応募はこちら」（`apply_url`）＋ postback「興味あり」（`sponsored:interest:{sponsor_id}`）
+- **カルーセル組み立て**: `src/handlers/student.py` のやりたいこと相談（ブランチ A / B 両方）で、Gemini 応答後にマッチPR を先頭へ別枠挿入（通常提案は最大 3 件維持、合計最大 4 バブル）
+- **トラッキング**: `src/handlers/postback.py` で `sponsored:interest:*` を処理し、`data/sponsored_engagement.json` に追記（user_id はハッシュ化、`§4.13` スキーマ）。`scripts/init_data.py` に空スケルトン生成を追加
+
+**完了基準**:
+
+- [ ] プロフィール合致学生でやりたいこと相談 → カルーセル先頭に「🏢 PR（協賛）」枠が表示される
+- [ ] 合致案件が無い学生では PR 枠が表示されない
+- [ ] PR カードの掲載テキストが seed の値と一致する（AI による言い換えが無い）
+- [ ] 「詳細・応募はこちら」で `apply_url` が開く／「興味あり」で `sponsored_engagement.json` に記録される
+- [ ] `sponsored_engagement.json` に生の LINE user_id が保存されていない（ハッシュのみ）
+- [ ] iOS / Android 両方で PR 枠が崩れず表示される
+
+**優先度**: P1（`docs/02_mvp_scope.md §3.2`。逼迫時は落とせるが、収益モデル実演のため実装を目指す）
+
+**推定**: 2〜3 時間
+
+**Day 割当**: Day 4。T4.4（デモ通し）の前に実施し、シーン 2 の PR 実演を含めて通す。
+
 ## 7. タスク依存グラフ
 
 ```
@@ -577,3 +604,4 @@ Day 1
 | 2026-07-06 | T4.10 を新設: 学生投稿を生活相談 Gemini context に匿名化継承する SECI モデル体現タスク（成果物 posts.list_all_for_context / context_search 拡張 / prompts 更新 / gemini 呼び出し） | kmch4n |
 | 2026-07-06 | T4.11 を新設: LINE Loading Indicator API による中間応答 UX 磨き込み。line_reply.show_loading を追加し、student.py の 3 handler で「考えています…」等のテキスト reply を Loading Indicator に置き換える | kmch4n |
 | 2026-07-06 | Day 4 残タスクの範囲確定: T4.2 リッチメニュー本実装を Day 5+ に持ち越し（Quick Reply モックで暫定運用）、T4.9 Post-hoc 正規表現ハルシネーション検出も Day 5+ に持ち越し、T4.1a に welcome Flex 化を追加、T4.3 を 3 サブスコープ (a 残置除去 / b 語尾統一 / c 権限違い応答一貫性) に分割 | kmch4n |
+| 2026-07-08 | T4.12 企業スポンサードPR 実装（FR-S9、第3の収益源）を新設: sponsored.json seed・マッチング挿入・Flex PR 表示・興味ありトラッキングの成果物と完了基準を定義 | kmch4n |

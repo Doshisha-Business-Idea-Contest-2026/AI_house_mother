@@ -21,20 +21,22 @@ data/
 ├── parent_links.json          # 保護者-学生の紐付け
 ├── session_activities.json    # やりたいこと相談の 30 分短期永続化キャッシュ
 ├── monthly_report_state.json  # 月次サマリー Push の実行状態（二重実行防止用）
+├── sponsored_engagement.json  # スポンサーPR「興味あり」クリックの計測ログ（FR-S9）
 ├── seed/                      # 手動投入する seed データ（同志社今出川周辺）
 │   ├── areas.json             # 地域情報（実在: 公共施設・行政窓口等）
 │   ├── stores.json            # 学生向け店舗（実在: 民間実名店舗、鮮度注記必須）
 │   ├── events.json            # 地域イベント・ボランティア（実在: 大学公式・行政主催）
 │   ├── senior_posts.json      # 先輩投稿（架空: プライバシー保護）
+│   ├── sponsored.json         # 協賛企業イベント PR（架空: 実在企業の課金体裁誤認を回避）
 │   └── demo_profiles.json     # デモ用学生プロフィール（架空: プライバシー保護）
 └── logs/
     └── conversations/         # 任意: 会話ログ（デバッグ用、本番運用時は要検討）
 ```
 
 - **コミット対象**: `data/seed/*`（デモの再現性を確保）と `data/.gitkeep`/`data/seed/.gitkeep` のみ。
-- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 7 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`、`monthly_report_state.json`）。
+- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 8 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`、`monthly_report_state.json`、`sponsored_engagement.json`）。`data/seed/sponsored.json` は seed のためコミット対象。
 - **理由**: デモ直前のリセット容易性を優先する。ランタイム JSON をコミット対象にすると、審査員体験時に生成された LINE user_id が Git 履歴に残る懸念もある。
-- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON 7 種が空スキーマで作成される（既存ファイルは上書きしない）。
+- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON 8 種が空スキーマで作成される（既存ファイルは上書きしない）。
 
 ## 3. 並行アクセス
 
@@ -445,8 +447,9 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 | `senior_post` | 先輩投稿由来の提案 | `data/seed/senior_posts.json` |
 | `generated` | AI が seed を組み合わせて発想した提案 | seed に完全一致するレコードなし、Flex Message で「AI 提案（要確認）」ラベルを付与 |
 | `static_fallback` | Gemini 障害時のフォールバック | seed からランダム抽出（`docs/06_ai_spec.md §5.3.7`） |
+| `sponsored` | 協賛企業イベントの PR 枠（FR-S9） | `data/seed/sponsored.json`。コード側で決定論的に挿入。Flex Message で「🏢 PR（協賛）」を付与（`docs/04_functional_spec.md §4.3`） |
 
-新しい値を追加する場合は、`docs/06_ai_spec.md §4.1` のスキーマと `src/services/gemini.py::_ACTIVITY_JSON_SCHEMA` の enum も同時に更新すること。
+`static_fallback` / `sponsored` はコード側が付与する注入型で、Gemini の JSON 出力には現れない。したがって `sponsored` は `src/templates/flex/activity_carousel.py` の色・ラベルにのみ追加し、`src/services/gemini.py::_ACTIVITY_JSON_SCHEMA` の enum には**追加しない**。Gemini が直接返す値（`event` / `volunteer` / `store` / `senior_post` / `generated`）を増減する場合のみ、`docs/06_ai_spec.md §4.1` のスキーマと `_ACTIVITY_JSON_SCHEMA` を同時に更新すること。
 
 ### 4.11 monthly_report_state.json（ランタイム、月次 Push の実行状態）
 
@@ -480,6 +483,82 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 **初期化**:
 
 `scripts/init_data.py` が `{"last_batch": null}` の空スケルトンを作成する。既存ファイルは上書きしない。
+
+### 4.12 sponsored.json（seed、架空）
+
+やりたいこと相談に PR 枠として掲載する協賛企業イベント（FR-S9、`04_functional_spec.md §4.3`）を 2〜3 件手動投入。実在企業が課金して掲載しているという体裁を実在企業名で出すと誤認を招くため、**デモ用と分かる架空企業名**を用いる（`.codex/rules/project_rules.md` のプライバシー方針）。掲載テキストは Bot がそのまま表示するため、日付・応募条件は正確に記述する。
+
+- `data_freshness_note`: 募集状況の変化を前提とした鮮度注記を全レコードに必須付与（store seed と同方針）。Bot は bubble 末尾に鮮度注記を表示する。
+
+```json
+{
+    "sponsored": [
+        {
+            "sponsor_id": "SPN001",
+            "company_name": "株式会社サンプルテック（架空）",
+            "title": "選考直結ハッカソン 2026 秋",
+            "summary": "2 日間でプロダクトを開発。上位入賞者は本選考の一次選考が免除。",
+            "apply_url": "https://example.com/hackathon-2026",
+            "event_date": "2026-11-15",
+            "deadline": "2026-10-31",
+            "target": {
+                "faculties": ["経済", "商", "工", "情報"],
+                "grades": [3, 4],
+                "interest_tags": ["起業", "プログラミング", "ものづくり"]
+            },
+            "data_freshness_note": "2026-07 時点。募集状況は変更の可能性あり",
+            "active": true
+        }
+    ]
+}
+```
+
+**フィールド**:
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `sponsor_id` | string | 一意 ID（`"SPN" + 連番`）。トラッキングの相関キー |
+| `company_name` | string | 協賛企業名（架空。「（架空）」を明記） |
+| `title` | string | イベント名（40 文字以内目安） |
+| `summary` | string | 概要（2 文程度、120 文字以内目安） |
+| `apply_url` | string | 応募・詳細ページ URL（URI ボタンの遷移先） |
+| `event_date` | string | 開催日（`"YYYY-MM-DD"` または再帰表現。空文字許容） |
+| `deadline` | string | 応募締切（`"YYYY-MM-DD"`。空文字許容） |
+| `target` | object | マッチング条件。下記参照 |
+| `target.faculties` | list[str] | 対象学部（部分一致）。空リストは全学部対象 |
+| `target.grades` | list[int] | 対象学年。空リストは全学年対象 |
+| `target.interest_tags` | list[str] | 対象の興味タグ（プロフィール `interests` と突き合わせ） |
+| `data_freshness_note` | string | 鮮度注記（必須） |
+| `active` | bool | `true` のみ掲載候補。掲載停止は `false` に切り替える |
+
+**マッチング**（`04_functional_spec.md §4.3`）: `active: true` の案件を学生プロフィールの `faculty` / `grade` / `interests` と突き合わせ、合致スコア最上位 1 件を選ぶ。合致なしなら掲載しない。
+
+### 4.13 sponsored_engagement.json（ランタイム、PR クリック計測）
+
+スポンサーPR の「興味あり」クリックを記録し、企業への効果指標・発表での反応数提示に用いる（FR-S9）。個人特定を避けるため LINE user_id はハッシュ化して保存する（`.codex/rules/project_rules.md` のプライバシー方針）。
+
+```json
+{
+    "events": [
+        {
+            "sponsor_id": "SPN001",
+            "user_hash": "9f2c...",
+            "clicked_at": "2026-07-08T14:32:10+09:00"
+        }
+    ]
+}
+```
+
+**フィールド**:
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `events` | list[object] | クリックイベントの追記ログ |
+| `events[].sponsor_id` | string | クリックされた案件の `sponsor_id` |
+| `events[].user_hash` | string | LINE user_id のハッシュ（生値は保存しない） |
+| `events[].clicked_at` | string | クリック時刻（ISO 8601 + tz） |
+
+**初期化**: `scripts/init_data.py` が `{"events": []}` の空スケルトンを作成する。既存ファイルは上書きしない。集計は `sponsor_id` ごとの件数を数えるだけの単純な read で足りる（月次サマリーへの反映は MVP 対象外）。
 
 ## 5. デモ用学生プロフィール（架空）
 
@@ -675,3 +754,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-06 | Day 3 家族ループ用: §2 ツリーに monthly_report_state.json、§4.3 に post_id 採番方式と並行性、§4.4 に衝突チェック 5 回リトライと再発行 invalidate の pseudo コード、§4.11 monthly_report_state.json スキーマ新設、§7 に月境界判定ヘルパーと share_with_parent 不変条件 | kmch4n |
 | 2026-07-06 | T4.10 学生投稿継承の docs-first: §4.3 posts.json に匿名化継承ポリシーと 5-field allow-list、§8「経験投稿の他学生への継承」を新設（匿名化アクセサ list_all_for_context と Zero-context 影響） | kmch4n |
 | 2026-07-07 | posts.json `category` enum と月次レポート絵文字マッピングに `study`/`money`/`social`/`effort` の 4 種を追加（Issue #14 の docs-first 更新） | anluck-m |
+| 2026-07-08 | 企業スポンサードPR（FR-S9）の docs-first: §4.12 sponsored.json（seed、架空）と §4.13 sponsored_engagement.json（ランタイム、クリック計測）を新設、§4.10.1 reference_type enum に `sponsored`（注入型）を追加、§2 ツリー・gitignore・init 対象を 8 種に更新 | kmch4n |
