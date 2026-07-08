@@ -154,6 +154,7 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - 各提案を Flex Message カルーセルに変換
 - `reference_type: "generated"` の提案は Flex Message の Header に「AI 提案（要確認）」等の視覚ラベルを付与し、seed 由来の提案と区別する（詳細は `docs/04_functional_spec.md §4.3`）
 - Gemini API 障害等で 0 件が返った場合、seed からランダム 2 件を `reference_type: "static_fallback"` で返す（詳細は `§5.3.7`）
+- **スポンサーPR枠（FR-S9）は Gemini 非関与**: 協賛イベント（`data/seed/sponsored.json`）はプロンプトに渡さず、Gemini が 2〜3 件を返した後にコード側で決定論的にマッチング挿入する（`reference_type: "sponsored"`、`docs/04_functional_spec.md §4.3`）。Gemini に掲載内容を要約・言い換えさせないことで、開催日・応募条件の改変・捏造を防ぐ（NFR-Truth）。したがって `sponsored` は本節の出力形式スキーマにも `_ACTIVITY_JSON_SCHEMA` の enum にも含めない。
 
 **パラメータ調整**:
 - `temperature`: 0.8（多様性を出す）
