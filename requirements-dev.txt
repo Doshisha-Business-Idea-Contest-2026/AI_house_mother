@@ -1,0 +1,11 @@
+# Development and CI dependencies.
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Testing
+pytest==9.1.1
+
+# Formatting, linting, and type checking
+black==26.5.1
+ruff==0.15.20
+mypy==2.2.0
