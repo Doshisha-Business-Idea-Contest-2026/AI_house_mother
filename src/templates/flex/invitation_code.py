@@ -114,6 +114,24 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "size": "sm",
                     "wrap": True,
                 },
+                {"type": "separator", "color": "#e0e0e0"},
+                {
+                    "type": "text",
+                    "text": "🔒 保護者に共有される内容",
+                    "size": "xs",
+                    "color": "#999999",
+                    "weight": "bold",
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "「保護者に共有する」で投稿した頑張ったことに加え、"
+                        "生活・活動相談の利用状況（回数）が月次レポートで届きます。"
+                    ),
+                    "size": "xs",
+                    "color": "#666666",
+                    "wrap": True,
+                },
             ],
         },
         "footer": {
