@@ -6,6 +6,7 @@ style (Doshisha navy header, medium-spaced body sections, palette
 ``#e0e0e0`` separators). No footer buttons: the accompanying Quick Reply
 carries the ``✏️ 編集する`` / ``🏠 メインメニュー`` actions.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -29,9 +30,7 @@ _GRADE_LABELS: dict[str, str] = {
 def _format_updated_at(iso_ts: str) -> str:
     """Return ``YYYY-MM-DD HH:MM`` in JST or the original on failure."""
     try:
-        return datetime.fromisoformat(iso_ts).astimezone(JST).strftime(
-            "%Y-%m-%d %H:%M"
-        )
+        return datetime.fromisoformat(iso_ts).astimezone(JST).strftime("%Y-%m-%d %H:%M")
     except ValueError:
         return iso_ts
 

@@ -9,6 +9,7 @@ reserved words) and ``handlers/postback.py`` (menu:link_student /
 menu:monthly_report / link:*). Nothing is registered directly with the
 LINE WebhookHandler.
 """
+
 from __future__ import annotations
 
 import logging
@@ -305,9 +306,7 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
     )
 
 
-def _reply_placeholder(
-    event: PostbackEvent, role: str | None, text: str
-) -> None:
+def _reply_placeholder(event: PostbackEvent, role: str | None, text: str) -> None:
     """Terminal reply with role-aware Quick Reply (mirrors postback.py §3.4)."""
     if role is None:
         alt_text, contents, qr = build_welcome_message(prefix=text)

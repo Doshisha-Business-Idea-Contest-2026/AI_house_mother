@@ -3,13 +3,13 @@
 Every builder returns a ``linebot.v3.messaging.QuickReply`` ready to be
 attached to a ``TextMessage`` or ``FlexMessage``.
 """
+
 from linebot.v3.messaging import (
     MessageAction,
     PostbackAction,
     QuickReply,
     QuickReplyItem,
 )
-
 
 # ---------------------------------------------------------------------------
 # Reusable option data
@@ -75,9 +75,7 @@ def main_menu_quick_reply(role: str) -> QuickReply:
                     display_text="👨\u200d👩\u200d👧 保護者連携",
                 )
             ),
-            QuickReplyItem(
-                action=MessageAction(label="❓ ヘルプ", text="ヘルプ")
-            ),
+            QuickReplyItem(action=MessageAction(label="❓ ヘルプ", text="ヘルプ")),
         ]
     else:  # parent
         items = [
@@ -95,9 +93,7 @@ def main_menu_quick_reply(role: str) -> QuickReply:
                     display_text="🔗 学生と連携",
                 )
             ),
-            QuickReplyItem(
-                action=MessageAction(label="❓ ヘルプ", text="ヘルプ")
-            ),
+            QuickReplyItem(action=MessageAction(label="❓ ヘルプ", text="ヘルプ")),
         ]
     return QuickReply(items=items)
 
@@ -105,7 +101,11 @@ def main_menu_quick_reply(role: str) -> QuickReply:
 def cancel_quick_reply() -> QuickReply:
     """A single 「キャンセル」 button for use during flows."""
     return QuickReply(
-        items=[QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル"))]
+        items=[
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            )
+        ]
     )
 
 
@@ -186,9 +186,7 @@ def profile_start_quick_reply() -> QuickReply:
                     display_text="✍️ プロフィールを登録",
                 )
             ),
-            QuickReplyItem(
-                action=MessageAction(label="あとで登録する", text="あとで")
-            ),
+            QuickReplyItem(action=MessageAction(label="あとで登録する", text="あとで")),
         ]
     )
 
@@ -257,7 +255,9 @@ def effort_quick_reply() -> QuickReply:
     return QuickReply(
         items=[
             QuickReplyItem(action=MessageAction(label="スキップ", text="スキップ")),
-            QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル")),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
         ]
     )
 
@@ -280,7 +280,9 @@ def confirm_quick_reply() -> QuickReply:
                     display_text="🔄 やり直す",
                 )
             ),
-            QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル")),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
         ]
     )
 
@@ -328,7 +330,9 @@ def post_area_quick_reply() -> QuickReply:
     return QuickReply(
         items=[
             QuickReplyItem(action=MessageAction(label="なし", text="なし")),
-            QuickReplyItem(action=MessageAction(label="🚫 キャンセル", text="キャンセル")),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
         ]
     )
 
@@ -339,9 +343,9 @@ def post_share_parent_quick_reply() -> QuickReply:
         items=[
             QuickReplyItem(
                 action=PostbackAction(
-                    label="\U0001F468‍\U0001F469‍\U0001F467 共有する",
+                    label="\U0001f468‍\U0001f469‍\U0001f467 共有する",
                     data="post:share:yes",
-                    display_text="\U0001F468‍\U0001F469‍\U0001F467 共有する",
+                    display_text="\U0001f468‍\U0001f469‍\U0001f467 共有する",
                 )
             ),
             QuickReplyItem(

@@ -10,6 +10,7 @@ The uvicorn service is launched with ``--workers 1`` so this in-memory
 store is safe. Once the app scales beyond a single worker, this module
 must be replaced with a shared store (Redis or similar).
 """
+
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo

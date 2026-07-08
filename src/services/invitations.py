@@ -13,6 +13,7 @@ Invariants:
   * Codes come from ``CODE_ALPHABET`` (32 characters, ``I``/``O``/``0``/``1``
     excluded for readability) and are single-use.
 """
+
 from __future__ import annotations
 
 import logging
@@ -144,9 +145,7 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
     }
     data["invitations"].append(record)
     save_json(_FILE, data)
-    logger.info(
-        "Issued invitation code (revoked=%d, ttl_hours=%d)", revoked, TTL_HOURS
-    )
+    logger.info("Issued invitation code (revoked=%d, ttl_hours=%d)", revoked, TTL_HOURS)
     return record
 
 

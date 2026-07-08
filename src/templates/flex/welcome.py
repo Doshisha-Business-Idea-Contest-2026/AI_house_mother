@@ -6,6 +6,7 @@ attached to the same message. Callers that need to prefix a system
 message (e.g. cancel, session timeout, wrong-role fallback) pass
 ``prefix`` and the bubble prepends it above the main body.
 """
+
 from linebot.v3.messaging import (
     PostbackAction,
     QuickReply,
@@ -98,7 +99,7 @@ def build_welcome_bubble(prefix: str | None = None) -> dict:
             "contents": [
                 {
                     "type": "text",
-                    "text": "\U0001F3E0 AI寮母へようこそ",
+                    "text": "\U0001f3e0 AI寮母へようこそ",
                     "color": "#ffffff",
                     "size": "xl",
                     "weight": "bold",
@@ -121,16 +122,16 @@ def build_role_quick_reply() -> QuickReply:
         items=[
             QuickReplyItem(
                 action=PostbackAction(
-                    label="\U0001F468\u200d\U0001F393 学生です",
+                    label="\U0001f468\u200d\U0001f393 学生です",
                     data="role:student",
-                    display_text="\U0001F468\u200d\U0001F393 学生です",
+                    display_text="\U0001f468\u200d\U0001f393 学生です",
                 )
             ),
             QuickReplyItem(
                 action=PostbackAction(
-                    label="\U0001F468\u200d\U0001F469\u200d\U0001F467 保護者です",
+                    label="\U0001f468\u200d\U0001f469\u200d\U0001f467 保護者です",
                     data="role:parent",
-                    display_text="\U0001F468\u200d\U0001F469\u200d\U0001F467 保護者です",
+                    display_text="\U0001f468\u200d\U0001f469\u200d\U0001f467 保護者です",
                 )
             ),
         ]
@@ -161,10 +162,15 @@ def build_role_switch_quick_reply() -> QuickReply:
     return QuickReply(
         items=[
             QuickReplyItem(
-                action=MessageAction(label="\U0001F468\u200d\U0001F393 学生に切り替え", text="学生")
+                action=MessageAction(
+                    label="\U0001f468\u200d\U0001f393 学生に切り替え", text="学生"
+                )
             ),
             QuickReplyItem(
-                action=MessageAction(label="\U0001F468\u200d\U0001F469\u200d\U0001F467 保護者に切り替え", text="保護者")
+                action=MessageAction(
+                    label="\U0001f468\u200d\U0001f469\u200d\U0001f467 保護者に切り替え",
+                    text="保護者",
+                )
             ),
             QuickReplyItem(action=MessageAction(label="キャンセル", text="キャンセル")),
         ]

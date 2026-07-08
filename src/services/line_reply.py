@@ -5,6 +5,7 @@ implementing the "Sender switch" spec (docs/04 §3.5). When omitted or
 ``None`` the message falls back to the ``friendly`` preset so existing
 call sites keep the same visual identity without changes.
 """
+
 import logging
 from typing import Literal, Optional
 
@@ -41,7 +42,9 @@ def _build_sender(preset: SenderPreset | None) -> Sender:
     try:
         name, icon_url = SENDER_PRESETS[key]
     except KeyError:
-        logger.warning("Unknown sender preset %r, falling back to %s", preset, _DEFAULT_PRESET)
+        logger.warning(
+            "Unknown sender preset %r, falling back to %s", preset, _DEFAULT_PRESET
+        )
         name, icon_url = SENDER_PRESETS[_DEFAULT_PRESET]
     return Sender(name=name, icon_url=icon_url)
 
@@ -132,9 +135,7 @@ def push_text(
     try:
         with ApiClient(configuration) as api_client:
             cl = MessagingApi(api_client)
-            cl.push_message(
-                PushMessageRequest(to=line_user_id, messages=[message])
-            )
+            cl.push_message(PushMessageRequest(to=line_user_id, messages=[message]))
     except Exception:
         logger.exception("push_text failed")
         if raise_on_error:
@@ -169,9 +170,7 @@ def push_flex(
     try:
         with ApiClient(configuration) as api_client:
             cl = MessagingApi(api_client)
-            cl.push_message(
-                PushMessageRequest(to=line_user_id, messages=[message])
-            )
+            cl.push_message(PushMessageRequest(to=line_user_id, messages=[message]))
     except Exception:
         logger.exception("push_flex failed")
         if raise_on_error:

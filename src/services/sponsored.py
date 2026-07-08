@@ -13,6 +13,7 @@ Matching scores ``active`` entries against the profile's ``faculty`` /
 ``sponsored_engagement.json`` with a hashed user id (the raw id is never
 stored).
 """
+
 from __future__ import annotations
 
 import hashlib

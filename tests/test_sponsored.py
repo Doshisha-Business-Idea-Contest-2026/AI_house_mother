@@ -8,6 +8,7 @@ the ``items`` injection point so the tests stay seed-independent.
 
 Style follows ``tests/test_activity_carousel.py``: no pytest dependency.
 """
+
 from src.services import sponsored
 
 

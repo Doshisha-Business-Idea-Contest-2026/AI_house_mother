@@ -5,6 +5,7 @@ Markdown residue removal, blank-line normalisation, and block joining.
 The module depends only on ``re`` so the tests run without the LINE /
 Gemini stack (and without ``fcntl``, which is unavailable on Windows).
 """
+
 from src.utils import text_format
 
 

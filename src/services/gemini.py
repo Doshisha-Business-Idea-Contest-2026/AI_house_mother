@@ -11,6 +11,7 @@ Exposes a small surface used by the handlers:
 The wrapper is deliberately synchronous. The FastAPI router offloads the
 call to a worker thread via :func:`asyncio.to_thread`.
 """
+
 from __future__ import annotations
 
 import json
@@ -202,7 +203,9 @@ def propose_from_student_efforts(
     profile = profile or {}
 
     if GEMINI_MOCK_MODE:
-        logger.info("[GEMINI_MOCK] propose_from_student_efforts returning seed fallback")
+        logger.info(
+            "[GEMINI_MOCK] propose_from_student_efforts returning seed fallback"
+        )
         return seed.pick_senior_post_activities(profile, count=fallback_count)
 
     interests: list[str] = profile.get("interests") or []
@@ -282,7 +285,9 @@ def answer_life_question(
         prompt, temperature=0.5, max_output_tokens=500, timeout=DEFAULT_TIMEOUT_S
     )
     if not answer:
-        return "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください。"
+        return (
+            "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください。"
+        )
     return answer
 
 

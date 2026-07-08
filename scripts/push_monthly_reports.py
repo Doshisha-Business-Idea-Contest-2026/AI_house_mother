@@ -15,6 +15,7 @@ Usage::
 Logs land in journald when launched from systemd; stderr when launched
 by hand.
 """
+
 from __future__ import annotations
 
 import argparse

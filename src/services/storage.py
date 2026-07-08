@@ -5,6 +5,7 @@ Reads take a shared lock; writes take an exclusive lock and use a
 temporary file + :func:`os.replace` for atomicity so partial writes
 never leave a JSON file in a broken state.
 """
+
 import fcntl
 import json
 import logging

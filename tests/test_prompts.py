@@ -10,6 +10,7 @@ Style follows ``tests/test_text_format.py``: no pytest dependency, plain
 ``assert`` inside class-grouped methods so the file can be executed
 directly on machines without pytest / ``fcntl`` (e.g. Windows).
 """
+
 from src.services import prompts
 
 
@@ -30,7 +31,12 @@ class TestSummariseStores:
 
     def test_falls_back_to_unknown_when_field_missing(self) -> None:
         stores = [
-            {"name": "無鮮度店", "category": "restaurant", "area": "上京区", "description": ""}
+            {
+                "name": "無鮮度店",
+                "category": "restaurant",
+                "area": "上京区",
+                "description": "",
+            }
         ]
         out = prompts._summarise_stores(stores)
         assert "[情報鮮度: 不明]" in out

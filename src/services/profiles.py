@@ -3,6 +3,7 @@
 Profiles are keyed by LINE ``user_id`` and stored in ``data/profiles.json``.
 See ``docs/05_data_model.md`` §4.2 for the schema.
 """
+
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo

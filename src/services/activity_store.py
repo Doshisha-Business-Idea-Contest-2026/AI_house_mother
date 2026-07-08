@@ -7,6 +7,7 @@ after the in-memory session times out.
 
 Entries older than :data:`TTL_SECONDS` are pruned lazily on read/write.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -36,7 +37,11 @@ def _load() -> dict[str, Any]:
 
 def _prune(data: dict[str, Any]) -> None:
     now = time.time()
-    stale = [k for k, v in data["activities"].items() if now - v.get("_written_at", 0) > TTL_SECONDS]
+    stale = [
+        k
+        for k, v in data["activities"].items()
+        if now - v.get("_written_at", 0) > TTL_SECONDS
+    ]
     for k in stale:
         data["activities"].pop(k, None)
 

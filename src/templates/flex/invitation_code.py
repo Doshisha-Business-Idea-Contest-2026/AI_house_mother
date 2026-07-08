@@ -9,6 +9,7 @@ menu.
 Spec: ``docs/04_functional_spec.md`` §4.6 and ``docs/05_data_model.md``
 §4.4.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

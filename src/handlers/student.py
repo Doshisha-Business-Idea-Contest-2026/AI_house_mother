@@ -8,6 +8,7 @@ The router entry points (``handlers/message.py`` and
 ``handlers/postback.py``) delegate here based on session state and
 postback prefixes.
 """
+
 import logging
 from typing import Any
 
@@ -351,7 +352,9 @@ def _send_confirmation(event: MessageEvent) -> None:
         "この内容で登録しますか？"
     )
     session.set_state(user_id, "profile.confirm", **ctx)
-    reply_text(event.reply_token, summary, quick_reply=confirm_quick_reply(), sender="system")
+    reply_text(
+        event.reply_token, summary, quick_reply=confirm_quick_reply(), sender="system"
+    )
 
 
 def _finalize_profile(event: PostbackEvent) -> None:
@@ -656,9 +659,7 @@ _EMERGENCY_MEDICAL_REPLY = (
 )
 
 _EMERGENCY_CRIME_REPLY = (
-    "警察への相談をおすすめします。\n"
-    "・緊急: 110\n"
-    "・相談: #9110"
+    "警察への相談をおすすめします。\n" "・緊急: 110\n" "・相談: #9110"
 )
 
 
@@ -707,15 +708,30 @@ def handle_life_consultation(event: MessageEvent) -> None:
     emergency = context_search.detect_emergency(text)
     if emergency == "life":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_LIFE_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
+        reply_text(
+            event.reply_token,
+            _EMERGENCY_LIFE_REPLY,
+            quick_reply=_life_quick_reply(),
+            sender="friendly",
+        )
         return
     if emergency == "medical":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_MEDICAL_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
+        reply_text(
+            event.reply_token,
+            _EMERGENCY_MEDICAL_REPLY,
+            quick_reply=_life_quick_reply(),
+            sender="friendly",
+        )
         return
     if emergency == "crime":
         session.clear_state(user_id)
-        reply_text(event.reply_token, _EMERGENCY_CRIME_REPLY, quick_reply=_life_quick_reply(), sender="friendly")
+        reply_text(
+            event.reply_token,
+            _EMERGENCY_CRIME_REPLY,
+            quick_reply=_life_quick_reply(),
+            sender="friendly",
+        )
         return
 
     # docs/04 §3.6: show the native loading indicator while we search and
@@ -734,7 +750,9 @@ def handle_life_consultation(event: MessageEvent) -> None:
         )
     except Exception:
         logger.exception("answer_life_question crashed")
-        answer = "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください🙇"
+        answer = (
+            "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください🙇"
+        )
 
     disclaimer_shown = zero_context
     medical_followup_shown = zero_context and medical_intent
@@ -788,7 +806,9 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
     try:
         record = invitations.issue_code(user_id)
     except RuntimeError:
-        logger.exception("issue_code failed for user=%s", user_id[:8] if user_id else "?")
+        logger.exception(
+            "issue_code failed for user=%s", user_id[:8] if user_id else "?"
+        )
         reply_text(
             event.reply_token,
             "コードの発行に失敗しました🙇 少し時間を空けてもう一度お試しください。",
@@ -819,7 +839,9 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
 # ---------------------------------------------------------------------------
 
 
-_POST_CATEGORY_LABELS: dict[str, str] = {value: label for label, value in POST_CATEGORIES}
+_POST_CATEGORY_LABELS: dict[str, str] = {
+    value: label for label, value in POST_CATEGORIES
+}
 _POST_STEP_ORDER: tuple[str, ...] = (
     "post.category",
     "post.title",
@@ -900,13 +922,11 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
 
     if step == "post.area":
         _record(user_id, "area", text)
-        session.set_state(
-            user_id, "post.share_parent", **_context_snapshot(user_id)
-        )
+        session.set_state(user_id, "post.share_parent", **_context_snapshot(user_id))
         reply_text(
             event.reply_token,
             (
-                "\U0001F468‍\U0001F469‍\U0001F467 保護者に「頑張ったこと」として共有しますか？\n"
+                "\U0001f468‍\U0001f469‍\U0001f467 保護者に「頑張ったこと」として共有しますか？\n"
                 "共有しないを選ぶと、この投稿は保護者には届きません。"
             ),
             quick_reply=post_share_parent_quick_reply(),
@@ -1028,11 +1048,16 @@ def _send_post_confirmation(event: PostbackEvent) -> None:
         f"📝 タイトル: {ctx.get('title', '')}\n"
         f"📖 本文: {ctx.get('body', '')}\n"
         f"📍 場所: {area_display}\n"
-        f"\U0001F468‍\U0001F469‍\U0001F467 保護者共有: {share_label}\n\n"
+        f"\U0001f468‍\U0001f469‍\U0001f467 保護者共有: {share_label}\n\n"
         "この内容で投稿しますか？"
     )
     session.set_state(user_id, "post.confirm", **ctx)
-    reply_text(event.reply_token, summary, quick_reply=post_confirm_quick_reply(), sender="system")
+    reply_text(
+        event.reply_token,
+        summary,
+        quick_reply=post_confirm_quick_reply(),
+        sender="system",
+    )
 
 
 def _finalize_post(event: PostbackEvent) -> None:

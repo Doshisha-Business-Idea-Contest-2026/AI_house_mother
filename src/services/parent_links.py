@@ -14,6 +14,7 @@ The ``link`` function is idempotent on ``(parent_user_id,
 student_user_id)``: repeated calls refresh ``linked_at`` and ensure
 ``active`` is True, but do not create duplicate rows.
 """
+
 from __future__ import annotations
 
 import logging

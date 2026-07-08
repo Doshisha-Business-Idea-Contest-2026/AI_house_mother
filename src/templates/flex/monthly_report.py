@@ -5,6 +5,7 @@ student, each prefixed with a category emoji. The layout intentionally
 stays lean: no "send a message" button and no external links so the
 parent view keeps the focus on the student's own text.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -81,9 +82,7 @@ def build_monthly_report_bubble(
     for index, post in enumerate(posts):
         body_contents.extend(_post_row(post))
         if index < len(posts) - 1:
-            body_contents.append(
-                {"type": "separator", "color": "#e0e0e0"}
-            )
+            body_contents.append({"type": "separator", "color": "#e0e0e0"})
 
     return {
         "type": "bubble",

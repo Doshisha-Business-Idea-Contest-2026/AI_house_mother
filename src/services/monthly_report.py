@@ -9,6 +9,7 @@ Spec: ``docs/04_functional_spec.md`` §5.3 and ``docs/05_data_model.md``
 §7. The privacy invariant (``share_with_parent == True`` only) is
 enforced by ``posts.list_month_shared`` which this module wraps.
 """
+
 from __future__ import annotations
 
 import logging
@@ -41,9 +42,7 @@ def _first_of_prev_month(now_jst: datetime) -> datetime:
     """Return the 00:00 JST datetime of the 1st of the previous month."""
     first_this = _first_of_this_month(now_jst)
     last_prev = first_this - timedelta(seconds=1)
-    return last_prev.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
+    return last_prev.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
 def _year_month(dt: datetime) -> str:
@@ -52,9 +51,7 @@ def _year_month(dt: datetime) -> str:
 
 def _trim(posts_in: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return the newest ``MAX_POSTS_IN_REPORT`` posts (created_at desc)."""
-    ordered = sorted(
-        posts_in, key=lambda r: r.get("created_at", ""), reverse=True
-    )
+    ordered = sorted(posts_in, key=lambda r: r.get("created_at", ""), reverse=True)
     return ordered[:MAX_POSTS_IN_REPORT]
 
 

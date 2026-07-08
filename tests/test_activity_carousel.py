@@ -8,6 +8,7 @@ while purely AI-generated proposals must not. See
 
 Style follows ``tests/test_text_format.py``: no pytest dependency.
 """
+
 from src.templates.flex import activity_carousel
 
 
@@ -127,7 +128,9 @@ class TestSponsoredBubble:
     def test_uses_gold_header_color(self) -> None:
         bubble = activity_carousel._build_sponsored_bubble(_make_sponsored())
         header = bubble["header"]  # type: ignore[index]
-        assert header["backgroundColor"] == activity_carousel._CATEGORY_COLORS["sponsored"]
+        assert (
+            header["backgroundColor"] == activity_carousel._CATEGORY_COLORS["sponsored"]
+        )
 
 
 class TestCarouselWithSponsored:

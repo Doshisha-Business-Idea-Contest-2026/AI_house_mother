@@ -7,6 +7,7 @@ can be fed into the Gemini prompt.
 See ``docs/06_ai_spec.md §5.3`` for the Zero-context handling contract
 that this module supports.
 """
+
 from __future__ import annotations
 
 import re
@@ -60,6 +61,7 @@ class ContextSearchResult(TypedDict):
     student_posts: list[dict[str, Any]]
     total_hits: int
     matched_categories: set[str]
+
 
 _TOKEN_SPLIT = re.compile(r"[\s、。,.!?！？]+")
 # Filler characters we should not emit as 2-gram tokens.
@@ -119,9 +121,7 @@ def _score(item: dict[str, Any], fields: list[str], tokens: list[str]) -> int:
     return sum(1 for tok in tokens if tok and tok in haystack)
 
 
-def find_relevant_context(
-    user_message: str, top_k: int = 5
-) -> ContextSearchResult:
+def find_relevant_context(user_message: str, top_k: int = 5) -> ContextSearchResult:
     """Return matched seed items grouped by kind plus aggregate stats.
 
     See ``docs/06_ai_spec.md §5.3.3`` for the contract.
@@ -137,9 +137,7 @@ def find_relevant_context(
     stores = rank(seed.get_stores(), ["name", "description", "area"])
     areas = rank(seed.get_areas(), ["name", "description"])
     senior_posts = rank(seed.get_senior_posts(), ["title", "body", "area"])
-    student_posts = rank(
-        posts.list_all_for_context(), ["title", "body", "area"]
-    )
+    student_posts = rank(posts.list_all_for_context(), ["title", "body", "area"])
 
     matched: set[str] = set()
     for item in (*stores, *areas, *senior_posts, *student_posts):

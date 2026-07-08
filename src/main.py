@@ -4,6 +4,7 @@ Boots the ASGI app, wires up logging so that uvicorn's default access
 logger does not clobber application logs, and imports handler modules
 for their ``@handler.add`` registration side effects.
 """
+
 import logging
 import logging.config
 from pathlib import Path
@@ -35,9 +36,21 @@ def _configure_logging() -> None:
                 },
             },
             "loggers": {
-                "uvicorn": {"level": LOG_LEVEL, "handlers": ["console"], "propagate": False},
-                "uvicorn.error": {"level": LOG_LEVEL, "handlers": ["console"], "propagate": False},
-                "uvicorn.access": {"level": LOG_LEVEL, "handlers": ["console"], "propagate": False},
+                "uvicorn": {
+                    "level": LOG_LEVEL,
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "uvicorn.error": {
+                    "level": LOG_LEVEL,
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
+                "uvicorn.access": {
+                    "level": LOG_LEVEL,
+                    "handlers": ["console"],
+                    "propagate": False,
+                },
             },
             "root": {"level": LOG_LEVEL, "handlers": ["console"]},
         }

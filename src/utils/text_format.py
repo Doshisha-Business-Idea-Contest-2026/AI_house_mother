@@ -8,6 +8,7 @@ life-consultation answer stays readable in a single text bubble.
 
 See ``docs/06_ai_spec.md §4.2`` and ``docs/04_functional_spec.md §4.4``.
 """
+
 from __future__ import annotations
 
 import re

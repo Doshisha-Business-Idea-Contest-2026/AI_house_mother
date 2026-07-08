@@ -1,4 +1,5 @@
 """Runtime configuration loaded from environment variables."""
+
 import logging
 import os
 import sys
@@ -29,7 +30,9 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    logger.warning("GEMINI_API_KEY is not set. Gemini-backed features will fail once introduced.")
+    logger.warning(
+        "GEMINI_API_KEY is not set. Gemini-backed features will fail once introduced."
+    )
 
 FASTAPI_PORT = int(os.getenv("FASTAPI_PORT", "8084"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

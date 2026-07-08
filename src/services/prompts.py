@@ -3,8 +3,8 @@
 Centralising these strings keeps the AI behaviour reviewable in one
 place. See ``docs/06_ai_spec.md`` for design notes.
 """
-from typing import Any
 
+from typing import Any
 
 SYSTEM_PROMPT_COMMON = """あなたは「AI寮母」という LINE Bot のアシスタントです。
 京都・同志社大学周辺の学生マンションに住む学生と、その保護者をサポートします。
@@ -137,8 +137,7 @@ def build_activity_prompt(
 ) -> str:
     """Prompt used by ``propose_activities``."""
     return (
-        SYSTEM_PROMPT_COMMON
-        + "\n\n【今回の依頼】\n"
+        SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
         "学生から「何かやりたい」と相談を受けています。\n"
         "以下のプロフィールと地域データから、2〜3 件の活動を提案してください。\n\n"
         "【学生プロフィール】\n"
@@ -173,8 +172,7 @@ def build_student_efforts_prompt(
     is constrained to ``senior_post`` / ``generated``.
     """
     return (
-        SYSTEM_PROMPT_COMMON
-        + "\n\n【今回の依頼】\n"
+        SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
         "学生が「ほかの学生の取り組みを知りたい」と言っています。\n"
         "以下の先輩投稿と、同じマンションの学生の経験投稿（匿名）を素材に、\n"
         "その学生が真似したり参加したりできる活動を 2〜3 件提案してください。\n\n"
@@ -224,8 +222,7 @@ def build_life_consultation_prompt(
     )
 
     return (
-        SYSTEM_PROMPT_COMMON
-        + "\n\n【今回の依頼】\n"
+        SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
         "学生から生活相談が届きました。地域情報・先輩投稿・過去の学生投稿を参照して回答してください。\n\n"
         "【学生プロフィール】\n"
         + _summarise_profile(profile)
@@ -252,14 +249,11 @@ def build_life_consultation_prompt(
         "- 実在の店舗・病院・施設を挙げる場合は、上記【関連する店舗】/【関連する地域情報】の各行末の\n"
         "  [情報鮮度: ...] の値をそのまま抜き出し、「※ (値)」の形で末尾に 1 文添える。\n"
         "  例: 「※2026-07 時点の情報。営業状況は変わっている可能性があります」\n"
-        "- 300 文字以内でまとめる。\n"
-        + zero_context_line
-        + "\n【回答書式】\n"
+        "- 300 文字以内でまとめる。\n" + zero_context_line + "\n【回答書式】\n"
         "- 冒頭の 1 文で結論・要点を先に述べる（結論先出し）。\n"
         "- 候補・手順・注意点が複数ある場合は行頭「・」の箇条書きにする。\n"
         "- Markdown 記号（-, *, #, **）は使わない。LINE は装飾を表示せず記号がそのまま残る。\n"
-        "- 結論・箇条書き・締めのブロックの間は空行 1 つで区切る。\n"
-        + "\n回答:"
+        "- 結論・箇条書き・締めのブロックの間は空行 1 つで区切る。\n" + "\n回答:"
     )
 
 
@@ -268,8 +262,7 @@ def build_activity_detail_prompt(
 ) -> str:
     """Prompt used by ``answer_activity_detail`` (Flex card follow-up)."""
     return (
-        SYSTEM_PROMPT_COMMON
-        + "\n\n【今回の依頼】\n"
+        SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
         "学生が以下の活動について詳しく知りたがっています。\n\n"
         "【対象活動】\n"
         f"タイトル: {activity.get('title', '')}\n"

@@ -15,6 +15,7 @@ Supported prefixes:
 - ``post:*``                  — experience posting flow
 - ``link:*``                  — parent link entry / confirmation
 """
+
 import logging
 
 from linebot.v3.webhooks import PostbackEvent
@@ -270,9 +271,7 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
     _reply_placeholder(event, role, "未対応の操作です。")
 
 
-def _reply_placeholder(
-    event: PostbackEvent, role: str | None, text: str
-) -> None:
+def _reply_placeholder(event: PostbackEvent, role: str | None, text: str) -> None:
     """Terminal reply with role-aware Quick Reply (docs §3.4)."""
     if role is None:
         alt_text, contents, qr = build_welcome_message(prefix=text)

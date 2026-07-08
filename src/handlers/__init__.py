@@ -9,6 +9,7 @@ Note: ``student`` does not register handlers directly (it is invoked by
 ``message.py`` and ``postback.py``), but importing it up-front keeps its
 imports validated at boot time.
 """
+
 from src.handlers import follow  # noqa: F401
 from src.handlers import postback  # noqa: F401
 from src.handlers import message  # noqa: F401

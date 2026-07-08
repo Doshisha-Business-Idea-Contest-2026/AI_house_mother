@@ -3,6 +3,7 @@
 Persists role assignments in ``data/users.json`` using the storage
 service. The user's LINE ``user_id`` is used as the primary key.
 """
+
 from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo

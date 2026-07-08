@@ -3,6 +3,7 @@
 Loads the ``data/seed/*.json`` fixtures on first access and caches them
 in memory. All lookups are read-only; there is no writeback path.
 """
+
 import logging
 from typing import Any
 

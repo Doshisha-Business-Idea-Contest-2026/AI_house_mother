@@ -7,6 +7,7 @@ Note: The FollowEvent's reply_token expires in 30 seconds. If a
 Gemini-backed welcome ever becomes necessary, switch to push_message
 instead of relying on reply_token.
 """
+
 import logging
 
 from linebot.v3.webhooks import FollowEvent

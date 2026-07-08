@@ -20,6 +20,7 @@ Usage::
     python scripts/reset_demo.py            # asks for y/N
     python scripts/reset_demo.py --yes      # non-interactive
 """
+
 from __future__ import annotations
 
 import argparse
@@ -78,8 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     targets: list[tuple[Path, object]] = [
-        (DATA_DIR / name, initial)
-        for name, initial in INITIAL_FILES.items()
+        (DATA_DIR / name, initial) for name, initial in INITIAL_FILES.items()
     ]
 
     _print_targets(targets)

@@ -7,6 +7,7 @@ filter in place — dropping it would leak private posts to the parent
 Flex message. See ``docs/04_functional_spec.md`` §4.5 and
 ``docs/05_data_model.md`` §4.3.
 """
+
 from __future__ import annotations
 
 import logging
@@ -61,7 +62,7 @@ def _next_post_id(existing: list[dict[str, Any]]) -> str:
         if not isinstance(pid, str) or not pid.startswith(POST_ID_PREFIX):
             continue
         try:
-            n = int(pid[len(POST_ID_PREFIX):])
+            n = int(pid[len(POST_ID_PREFIX) :])
         except ValueError:
             continue
         if n > max_num:

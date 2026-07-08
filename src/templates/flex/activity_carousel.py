@@ -4,10 +4,10 @@ The bubble structure is inspired by ``kcb_linebot/flex_templates.py``:
 size mega, colour-coded header, section-separated body, and a footer
 with two postback buttons ("詳しく聞く" / "参加した").
 """
+
 from __future__ import annotations
 
 from typing import Any
-
 
 DEFAULT_COLOR = "#00579C"  # Doshisha-ish navy blue
 
@@ -82,9 +82,7 @@ def build_activity_carousel(
     }
 
 
-def _build_bubble(
-    *, index: int, activity: dict[str, Any], key: str
-) -> dict[str, Any]:
+def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str, Any]:
     reference_type = activity.get("reference_type", "generated")
     color = get_activity_header_color(reference_type)
     title = activity.get("title") or f"提案 {index}"
