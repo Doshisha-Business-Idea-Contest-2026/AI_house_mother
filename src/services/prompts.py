@@ -278,3 +278,56 @@ def build_activity_detail_prompt(
         "- 300 文字以内。\n\n"
         "回答:"
     )
+
+
+def build_month_summary_prompt(
+    profile: dict[str, Any] | None,
+    year_month: str,
+    posts: list[dict[str, Any]],
+    usage: dict[str, int],
+) -> str:
+    """Prompt for the AI 寮母 monthly report closing message (FR-P3).
+
+    Args:
+        profile: The student profile (may be ``None``).
+        year_month: Target month in ``"YYYY-MM"``.
+        posts: Current-month shared posts (only ``title`` is used to
+            avoid duplicating the 60-char body preview shown on the Flex).
+        usage: Current-month counters (``life`` / ``activity`` / ``post``
+            / ``profile``, missing keys treated as 0).
+
+    Returns:
+        Prompt string ready for ``gemini.call_gemini``.
+    """
+    if posts:
+        titles = "\n".join(f"- {p.get('title', '').strip()}" for p in posts)
+    else:
+        titles = "- （今月は共有された投稿がありません）"
+
+    life = int(usage.get("life", 0))
+    activity = int(usage.get("activity", 0))
+    post_count = int(usage.get("post", 0))
+    profile_count = int(usage.get("profile", 0))
+
+    return (
+        SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
+        "保護者向けの月次レポートに添える、AI 寮母からの温かい 2〜3 文の総括を書いてください。\n\n"
+        "【学生プロフィール（参考）】\n"
+        + _summarise_profile(profile)
+        + f"\n\n【対象月】{year_month}\n"
+        "【当月に共有された頑張ったことのタイトル】\n"
+        f"{titles}\n\n"
+        "【当月の利用状況】\n"
+        f"- 生活相談: {life}回\n"
+        f"- やりたいこと相談: {activity}回\n"
+        f"- 経験投稿: {post_count}回\n"
+        f"- プロフィール更新: {profile_count}回\n\n"
+        "【出力ルール】\n"
+        "- 2〜3 文、合計 120 文字以内。プレーンテキストのみ（絵文字・箇条書き・見出しは使わない）。\n"
+        "- 「〜な様子です」「〜されているようです」など推測の語尾を使い、断定しない。\n"
+        "- 具体的な事実に触れて良いのは投稿タイトルまたは相談回数のいずれか 1 点まで。\n"
+        "- 数値の解釈は前向きに（0 回でも「今月は静かに過ごされているようです」など）。\n"
+        "- 医療診断、法律断定、緊急対応判断、成績評価、進路助言は書かない。\n"
+        "- プロフィール以外の個人情報は書かない。\n\n"
+        "総括:"
+    )

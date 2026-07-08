@@ -312,6 +312,60 @@ def answer_activity_detail(
     return answer
 
 
+# See docs/04 §5.3 / docs/06 §4.4: the parent monthly report's closing
+# "AI 寮母より" line. Kept close to :func:`summarize_month` so the
+# fallback wording never drifts from the code path that emits it.
+_MONTH_SUMMARY_FALLBACK = "今月もお子さんは元気に過ごされている様子です。"
+_MONTH_SUMMARY_MOCK = "（mock）今月も前向きに過ごされている様子です。"
+_SUMMARY_MIN_CONSULT_FOR_LLM = 3
+
+
+def summarize_month(
+    profile: dict[str, Any] | None,
+    year_month: str,
+    posts_month: list[dict[str, Any]],
+    usage: dict[str, int],
+) -> str:
+    """Return the closing AI comment for the parent monthly report (FR-P3).
+
+    Skips Gemini entirely (returns the fallback line) when the month has
+    no shared posts and fewer than
+    :data:`_SUMMARY_MIN_CONSULT_FOR_LLM` consultations combined — there
+    is not enough material for a meaningful summary, and paying a Gemini
+    call for that is wasteful.
+
+    Args:
+        profile: The student profile (may be ``None``).
+        year_month: Target month string ``"YYYY-MM"``.
+        posts_month: Current-month shared posts (only ``title`` is used).
+        usage: Current-month counters (``life`` / ``activity`` / ``post``
+            / ``profile``, missing keys treated as 0).
+
+    Returns:
+        A short plain-text closing line (fallback or Gemini output).
+    """
+    life = int(usage.get("life", 0))
+    activity = int(usage.get("activity", 0))
+    if not posts_month and (life + activity) < _SUMMARY_MIN_CONSULT_FOR_LLM:
+        return _MONTH_SUMMARY_FALLBACK
+
+    if GEMINI_MOCK_MODE:
+        return _MONTH_SUMMARY_MOCK
+
+    prompt = prompts.build_month_summary_prompt(
+        profile=profile,
+        year_month=year_month,
+        posts=posts_month,
+        usage=usage,
+    )
+    answer = call_gemini(
+        prompt, temperature=0.6, max_output_tokens=200, timeout=DEFAULT_TIMEOUT_S
+    )
+    if not answer:
+        return _MONTH_SUMMARY_FALLBACK
+    return answer
+
+
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
