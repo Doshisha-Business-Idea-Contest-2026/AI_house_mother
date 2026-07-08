@@ -22,6 +22,7 @@ data/
 ├── session_activities.json    # やりたいこと相談の 30 分短期永続化キャッシュ
 ├── monthly_report_state.json  # 月次サマリー Push の実行状態（二重実行防止用）
 ├── sponsored_engagement.json  # スポンサーPR「興味あり」クリックの計測ログ（FR-S9）
+├── usage_stats.json           # 学生の月次利用回数（生活/活動相談・投稿・プロフィール、FR-P3 拡張）
 ├── seed/                      # 手動投入する seed データ（同志社今出川周辺）
 │   ├── areas.json             # 地域情報（実在: 公共施設・行政窓口等）
 │   ├── stores.json            # 学生向け店舗（実在: 民間実名店舗、鮮度注記必須）
@@ -34,9 +35,9 @@ data/
 ```
 
 - **コミット対象**: `data/seed/*`（デモの再現性を確保）と `data/.gitkeep`/`data/seed/.gitkeep` のみ。
-- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 8 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`、`monthly_report_state.json`、`sponsored_engagement.json`）。`data/seed/sponsored.json` は seed のためコミット対象。
+- **`.gitignore` 除外**: `data/logs/` および実行時に更新される JSON 9 種（`users.json`、`profiles.json`、`posts.json`、`invitations.json`、`parent_links.json`、`session_activities.json`、`monthly_report_state.json`、`sponsored_engagement.json`、`usage_stats.json`）。`data/seed/sponsored.json` は seed のためコミット対象。
 - **理由**: デモ直前のリセット容易性を優先する。ランタイム JSON をコミット対象にすると、審査員体験時に生成された LINE user_id が Git 履歴に残る懸念もある。
-- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON 8 種が空スキーマで作成される（既存ファイルは上書きしない）。
+- **初期化**: `python scripts/init_data.py` を実行すると、ランタイム JSON 9 種が空スキーマで作成される（既存ファイルは上書きしない）。
 
 ## 3. 並行アクセス
 
@@ -560,6 +561,48 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 
 **初期化**: `scripts/init_data.py` が `{"events": []}` の空スケルトンを作成する。既存ファイルは上書きしない。集計は `sponsor_id` ごとの件数を数えるだけの単純な read で足りる（月次サマリーへの反映は MVP 対象外）。
 
+### 4.14 usage_stats.json（ランタイム、学生の月次利用回数）
+
+FR-P3 拡張の第2層（利用状況の可視化）の計測ストア。学生が生活相談・やりたいこと相談を送るごと、経験投稿を保存するごと、プロフィールを更新するごとに 1 加算する。**保護者への共有は招待コード連携時の一括同意範囲**として扱い、レポートには当月分のみを要約表示する（`docs/04_functional_spec.md §5.3`）。ダッシュボードとしての時系列可視化は MVP スコープ外（`docs/02_mvp_scope.md §4.1`）。
+
+```json
+{
+    "U1234567890abcdef1234567890abcdef": {
+        "2026-07": {
+            "life": 8,
+            "activity": 4,
+            "post": 3,
+            "profile": 1
+        }
+    }
+}
+```
+
+**フィールド**:
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `<line_user_id>` | object | 学生の LINE user_id（キー）。既存 `posts.json` / `profiles.json` と同じくキーとして使用。 |
+| `<line_user_id>.<YYYY-MM>` | object | 月次バケット。当月の各イベントカウント。 |
+| `<...>.life` | int | 生活相談ハンドラの呼出回数（非緊急・実回答分岐に到達した発話 1 件で +1）。マルチターンでも 1 発話 = 1 カウント。 |
+| `<...>.activity` | int | やりたいこと相談（`handle_want_events` / `handle_want_students`）の呼出回数。 |
+| `<...>.post` | int | 経験投稿の保存成功回数（`share_with_parent` の値によらず加算）。 |
+| `<...>.profile` | int | プロフィール保存成功回数（新規登録も編集も両方カウント）。 |
+
+**加算タイミング**（`src/handlers/student.py` 内、実装で参照する docs）:
+
+- `handle_life_consultation` の非緊急分岐、Gemini 呼出直後 → `life`
+- `handle_want_events` / `handle_want_students` 冒頭 → `activity`
+- 経験投稿保存 (`posts.add_post`) 直後 → `post`
+- `profiles.save_profile` 直後 → `profile`
+
+**加算 API**（`src/services/usage_stats.py`）:
+
+- `record(user_id: str, event_type: str, now_jst: datetime | None = None) -> None`
+- `get_month(user_id: str, year_month: str) -> dict[str, int]`（欠損は 0 埋め）
+
+**初期化**: `scripts/init_data.py` が `{}` の空スケルトンを作成する。既存ファイルは上書きしない。生 user_id をキーに持つため `.gitignore` 除外必須（他のランタイム JSON と同じ扱い）。ログには `user_id[:8]` のみ出す。
+
 ## 5. デモ用学生プロフィール（架空）
 
 デモ用に 3〜5 名分の**架空**学生プロフィールを `data/seed/demo_profiles.json` として用意（デモ以外では使わない）。実在人物の情報は使用しない。
@@ -657,8 +700,25 @@ def use_invitation(code: str, parent_user_id: str) -> str | None:
 
 1. `parent_links.json` から連携先学生を特定（`list_students_for_parent` / `list_all_active_pairs`）
 2. `posts.json` から `share_with_parent=true` かつ対象月の投稿を抽出（`posts.list_month_shared`）
-3. 最大 5 件を **単一 Flex バブル**にリスト表示（カルーセルではない）
-4. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / 🎓 study / 💰 money / 🤝 social / 💪 effort / ✨ other）を付ける
+3. 対象月の**前月分の同フィルタ件数**を取得（先月比表示用）
+4. `posts.json` 全期間で `share_with_parent=true` を数える（`posts.count_all_shared`、全期間通算表示用）
+5. `usage_stats.json` から対象月のカウント辞書を取得（`usage_stats.get_month`）
+6. Gemini で月次総括コメントを 1 本生成（`gemini.summarize_month`、入力は共有投稿タイトル＋利用回数のみ、空月・API 失敗・mock 時は定型文フォールバック）
+7. 最大 5 件を **単一 Flex バブル**にリスト表示（カルーセルではない）
+8. カテゴリごとに絵文字（🏛️ event / 🧹 volunteer / 🍜 store / 🏥 medical / 📋 tips / 🎓 study / 💰 money / 🤝 social / 💪 effort / ✨ other）を付ける
+
+**Flex に渡す report dict**（`services/monthly_report.py`）:
+
+| キー | 型 | 説明 |
+| --- | --- | --- |
+| `student_user_id` | string | 対象学生 |
+| `student_display` | string | ヘッダー表示名（現状 `"あなたのお子さん"`） |
+| `year_month` | string | `"YYYY-MM"` |
+| `posts` | list[dict] | 対象月の投稿（最大 5 件、newest first） |
+| `prev_count` | int | 前月の共有投稿件数（先月比表示に使用） |
+| `total_count` | int | 全期間の共有投稿件数（通算表示に使用） |
+| `usage` | dict[str, int] | 対象月の利用回数（`life` / `activity` / `post` / `profile`）。少回数フォールバック判定にも使用。 |
+| `ai_summary` | string | 月次総括コメント（2〜3 文、フォールバック含む） |
 
 ### 7.1 月境界判定ヘルパー
 
@@ -756,3 +816,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-07 | posts.json `category` enum と月次レポート絵文字マッピングに `study`/`money`/`social`/`effort` の 4 種を追加（Issue #14 の docs-first 更新） | anluck-m |
 | 2026-07-08 | 企業スポンサードPR（FR-S9）の docs-first: §4.12 sponsored.json（seed、架空）と §4.13 sponsored_engagement.json（ランタイム、クリック計測）を新設、§4.10.1 reference_type enum に `sponsored`（注入型）を追加、§2 ツリー・gitignore・init 対象を 8 種に更新 | kmch4n |
 | 2026-07-08 | FR-S9 実装整合: §4.12 `target.grades` を list[int]→list[str]（プロフィール `grade` は `"M1"`/`"M2"` を含む文字列）、`interest_tags` を `INTEREST_TAGS` 語彙に整合、マッチングにスコア計算式（faculty +1 / grade +1 / interest 重なり件数、スコア 0 は非表示）を明記 | kmch4n |
+| 2026-07-09 | FR-P3 拡張の docs-first: §4.14 usage_stats.json を新設（学生の月次利用回数、加算タイミングと API を明記）、§2 ツリー・gitignore・init 対象を 9 種に更新、§7 月次サマリーに先月比・全期間通算・利用回数・AI 総括を折り込み Flex に渡す report dict のフィールド表を追加 | kmch4n |
