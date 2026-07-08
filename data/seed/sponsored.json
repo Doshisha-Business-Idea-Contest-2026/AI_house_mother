@@ -1,0 +1,52 @@
+{
+    "sponsored": [
+        {
+            "sponsor_id": "SPN001",
+            "company_name": "株式会社サンプルテック（架空）",
+            "title": "選考直結ハッカソン 2026 秋",
+            "summary": "2 日間でプロダクトを開発する学生向けハッカソン。上位入賞者は本選考の一次選考が免除されます。チーム参加歓迎。",
+            "apply_url": "https://example.com/hackathon-2026",
+            "event_date": "2026-11-15",
+            "deadline": "2026-10-31",
+            "target": {
+                "faculties": ["経済", "商"],
+                "grades": ["3", "4"],
+                "interest_tags": ["学問・研究", "ものづくり"]
+            },
+            "data_freshness_note": "2026-07 時点。募集状況は変更の可能性あり",
+            "active": true
+        },
+        {
+            "sponsor_id": "SPN002",
+            "company_name": "架空商事株式会社（架空）",
+            "title": "早期選考つき 1day 就活イベント",
+            "summary": "業界研究セミナーと社員座談会に参加できる就活準備イベント。参加者は早期選考ルートへの案内対象になります。",
+            "apply_url": "https://example.com/career-1day",
+            "event_date": "2026-09-20",
+            "deadline": "2026-09-10",
+            "target": {
+                "faculties": [],
+                "grades": ["3", "4", "M1", "M2"],
+                "interest_tags": ["起業・ビジネス", "国際交流"]
+            },
+            "data_freshness_note": "2026-07 時点。開催内容は変更の可能性あり",
+            "active": true
+        },
+        {
+            "sponsor_id": "SPN003",
+            "company_name": "架空みらい財団（架空）",
+            "title": "学生ビジネスアイデア大会 2026",
+            "summary": "地域課題の解決アイデアを競う学生大会。入賞チームには活動支援金と協賛企業でのインターン機会を提供します。",
+            "apply_url": "https://example.com/idea-contest-2026",
+            "event_date": "2026-12-06",
+            "deadline": "2026-11-20",
+            "target": {
+                "faculties": [],
+                "grades": [],
+                "interest_tags": ["起業・ビジネス", "学問・研究", "地域活動"]
+            },
+            "data_freshness_note": "2026-07 時点。応募要項は変更の可能性あり",
+            "active": true
+        }
+    ]
+}

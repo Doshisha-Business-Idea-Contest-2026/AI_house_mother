@@ -28,6 +28,7 @@ from src.services import (
     profiles,
     prompts,
     session,
+    sponsored,
     users,
 )
 from src.services.line_reply import (
@@ -445,17 +446,24 @@ def start_want_to_do_menu(event: MessageEvent | PostbackEvent) -> None:
 
 
 def _send_activity_carousel(
-    user_id: str, activities: list[dict[str, Any]], alt_text: str
+    user_id: str,
+    activities: list[dict[str, Any]],
+    alt_text: str,
+    profile: dict[str, Any],
 ) -> None:
     """Persist proposals and push the carousel + follow-up Quick Reply.
 
     Shared tail for both want-to-do branches. ``activities`` must be
-    non-empty (branches fall back to seed before calling this).
+    non-empty (branches fall back to seed before calling this). A matching
+    sponsored PR entry (FR-S9) is deterministically prepended when the
+    profile qualifies; sponsored entries bypass ``activity_store`` since
+    their postbacks resolve via ``sponsor_id`` directly.
     """
     keys = activity_store.remember(user_id, activities)
     session.set_state(user_id, "activity.viewing", activity_keys=keys)
 
-    flex = build_activity_carousel(activities, keys)
+    match = sponsored.match_for_profile(profile)
+    flex = build_activity_carousel(activities, keys, sponsored=match)
     push_flex(user_id, alt_text=alt_text, contents=flex, sender="friendly")
     push_text(
         user_id,
@@ -493,7 +501,10 @@ def handle_want_events(event: MessageEvent | PostbackEvent) -> None:
         return
 
     _send_activity_carousel(
-        user_id, activities, alt_text="🎯 やりたいこと相談：あなたへのおすすめ"
+        user_id,
+        activities,
+        alt_text="🎯 やりたいこと相談：あなたへのおすすめ",
+        profile=profile,
     )
 
 
@@ -527,7 +538,10 @@ def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
         return
 
     _send_activity_carousel(
-        user_id, activities, alt_text="🎯 やりたいこと相談：先輩・仲間の取り組み"
+        user_id,
+        activities,
+        alt_text="🎯 やりたいこと相談：先輩・仲間の取り組み",
+        profile=profile,
     )
 
 
@@ -575,6 +589,36 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
         (
             f"「{activity.get('title', '')}」に参加した記録を受け付けました！✨\n"
             "詳しく投稿したい場合は「✏️ 経験を投稿」から記録できます。"
+        ),
+        quick_reply=_activity_quick_reply(),
+        sender="friendly",
+    )
+
+
+def handle_sponsored_interest(event: PostbackEvent, sponsor_id: str) -> None:
+    """Handle the "興味あり" button on a sponsored PR bubble (FR-S9).
+
+    Records the tap for the sponsor's engagement metrics and acks the
+    student. The apply URL itself is opened by the separate URI button, so
+    this only needs to confirm the interest and point at the seed values.
+    """
+    entry = sponsored.get_by_id(sponsor_id)
+    if entry is None:
+        reply_text(
+            event.reply_token,
+            "対象の案内を復元できませんでした。もう一度「やりたいこと相談」を試してください。",
+            quick_reply=_activity_quick_reply(),
+            sender="system",
+        )
+        return
+
+    sponsored.record_interest(event.source.user_id, sponsor_id)
+    reply_text(
+        event.reply_token,
+        (
+            f"「{entry.get('title', '')}」への興味を受け付けました！✨\n"
+            "詳細・応募はカード内の「詳細・応募はこちら」から確認できます。\n"
+            "※この案内は協賛企業からの提供です。"
         ),
         quick_reply=_activity_quick_reply(),
         sender="friendly",

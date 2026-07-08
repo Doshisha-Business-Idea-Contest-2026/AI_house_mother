@@ -4,7 +4,6 @@ Loads the ``data/seed/*.json`` fixtures on first access and caches them
 in memory. All lookups are read-only; there is no writeback path.
 """
 import logging
-from pathlib import Path
 from typing import Any
 
 from src.services.storage import load_json
@@ -17,6 +16,7 @@ _SEED_FILES = {
     "events": ("seed/events.json", "events"),
     "senior_posts": ("seed/senior_posts.json", "senior_posts"),
     "demo_profiles": ("seed/demo_profiles.json", "demo_profiles"),
+    "sponsored": ("seed/sponsored.json", "sponsored"),
 }
 
 _cache: dict[str, list[dict[str, Any]]] | None = None
@@ -30,8 +30,9 @@ def load_all(force_reload: bool = False) -> dict[str, list[dict[str, Any]]]:
 
     Returns:
         Dictionary keyed by ``areas``, ``stores``, ``events``,
-        ``senior_posts``, ``demo_profiles``. Each value is the ``list``
-        stored under the corresponding top-level key of the JSON file.
+        ``senior_posts``, ``demo_profiles``, ``sponsored``. Each value is
+        the ``list`` stored under the corresponding top-level key of the
+        JSON file.
     """
     global _cache
     if _cache is not None and not force_reload:
@@ -43,12 +44,14 @@ def load_all(force_reload: bool = False) -> dict[str, list[dict[str, Any]]]:
         loaded[key] = data.get(root_key, [])
     _cache = loaded
     logger.info(
-        "Seed loaded: areas=%d stores=%d events=%d senior_posts=%d demo_profiles=%d",
+        "Seed loaded: areas=%d stores=%d events=%d senior_posts=%d "
+        "demo_profiles=%d sponsored=%d",
         len(loaded["areas"]),
         len(loaded["stores"]),
         len(loaded["events"]),
         len(loaded["senior_posts"]),
         len(loaded["demo_profiles"]),
+        len(loaded["sponsored"]),
     )
     return loaded
 
@@ -76,6 +79,11 @@ def get_senior_posts() -> list[dict[str, Any]]:
 
 def get_demo_profiles() -> list[dict[str, Any]]:
     return load_all()["demo_profiles"]
+
+
+def get_sponsored() -> list[dict[str, Any]]:
+    """Return the sponsored PR entries (FR-S9, docs/05 §4.12)."""
+    return load_all()["sponsored"]
 
 
 def _has_tag_intersection(item_tags: list[str], wanted: list[str]) -> bool:
