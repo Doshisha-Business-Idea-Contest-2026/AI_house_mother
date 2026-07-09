@@ -57,7 +57,8 @@ def _add_shared_post(
         line_user_id=user_id,
         category=category,
         title=title,
-        body="body",
+        summary="body",
+        learned="learned",
         area=None,
         share_with_parent=True,
     )

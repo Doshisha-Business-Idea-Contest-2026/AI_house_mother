@@ -337,6 +337,23 @@ def post_area_quick_reply() -> QuickReply:
     )
 
 
+def post_skip_quick_reply() -> QuickReply:
+    """Quick Reply offering to skip an optional post step or cancel.
+
+    Used by the optional structured steps (period / regret / advice) in
+    the experience posting flow. The "スキップ" text is normalized to
+    ``None`` by ``posts._normalize_skippable`` (docs/04 §4.5).
+    """
+    return QuickReply(
+        items=[
+            QuickReplyItem(action=MessageAction(label="⏭️ スキップ", text="スキップ")),
+            QuickReplyItem(
+                action=MessageAction(label="🚫 キャンセル", text="キャンセル")
+            ),
+        ]
+    )
+
+
 def post_share_parent_quick_reply() -> QuickReply:
     """Quick Reply asking whether to share the post with linked parents."""
     return QuickReply(

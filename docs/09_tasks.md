@@ -586,6 +586,47 @@ T4.1a（spacing/色/絵文字の軽微な統一、概ね完了済み）とは別
 
 **Day 割当**: Day 4 以降。T4.4（デモ通し）前に実施できれば実演効果が高い。
 
+### T4.14 経験投稿の構造化（body 丸投げ → 5 問フロー）
+
+**目的**: 経験投稿（FR-S6）の中核 `post.body`（丸投げの自由記述、最大 500 字）を、粒度が揃う
+5 問（期間 / 概要 / 学び / 残念・注意 / 次の人へのアドバイス）に構造化する。蓄積される投稿の質を
+底上げし、保護者月次レポートの読み応えと SECI モデル（他学生の生活相談 context）の継承精度を
+同時に高める。仕様は `docs/04_functional_spec.md §4.5`・`docs/05_data_model.md §4.3`・
+`docs/06_ai_spec.md §4.2` に定義済み。
+
+**成果物**:
+
+- `src/services/posts.py`:
+  - フィールド上限定数を追加（`MAX_PERIOD_LEN=100` / `MAX_SUMMARY_LEN=300` / `MAX_LEARNED_LEN=200`
+    / `MAX_REGRET_LEN=200` / `MAX_ADVICE_LEN=200`）、`MAX_BODY_LEN` を 500→1200 に引き上げ
+  - スキップ正規化ヘルパー `_normalize_skippable`（`skip`/`なし`/`無し`/`スキップ`/空 → `None`）を新設し、
+    `_normalize_area` をこれに委譲
+  - `compose_body(period, summary, learned, regret, advice)`（非空のみ `【…】` 連結）を新設
+  - `add_post` シグネチャを 5 フィールドに変更し、内部で `compose_body` を呼んで `body` も格納
+- `src/handlers/student.py`:
+  - `_POST_STEP_ORDER` を新 10 ステップに更新（`is_in_post_flow` の単一 source of truth）
+  - `handle_post_text` に `post.period`/`summary`/`learned`/`regret`/`advice` 分岐を追加
+    （必須ステップは空入力で再入力、スキップ可ステップはスキップトークンで `None` 記録）
+  - `_send_post_confirmation` の確認カードを 5 フィールド表示に、`_finalize_post` を新シグネチャに更新
+- `src/templates/quick_reply.py`: `post_skip_quick_reply()`（「⏭️ スキップ」＋「🚫 キャンセル」）を新設
+- `tests/test_posts.py`（新規、pytest 非依存の既存流儀）: `compose_body` / `_normalize_skippable` /
+  `add_post` のレコード形状（5 フィールド + 合成 body + 上限 truncate）を検証
+
+**完了基準**:
+
+- [ ] 経験投稿が category → title → 5 問 → area → 共有 → 確認の 10 ステップで動く
+- [ ] `post.period`/`regret`/`advice` はスキップ可、`summary`/`learned` は必須（空入力で再入力を促す）
+- [ ] `data/posts.json` に 5 フィールド + 合成 `body` が保存される
+- [ ] 保護者月次レポート・生活相談 context が合成 `body` 経由で無改修のまま動く（後方互換）
+- [ ] 旧スキーマの既存レコード（`body` のみ）も月次・context で従来どおり読める
+- [ ] `black --check` / `ruff check` / `mypy` / `pytest` が通る
+
+**優先度**: P2（投稿の質向上。MVP を止めないが SECI モデルの説得力に効く）
+
+**推定**: 3〜4 時間
+
+**Day 割当**: Day 4 以降。
+
 ## 7. タスク依存グラフ
 
 ```
@@ -617,6 +658,7 @@ T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ 
 5. **T4.1a Flex Message デザイン調整** — テキスト応答に置き換え
 6. **T4.1b Sender switch 実装** — 全応答を単一送信者に戻す（アイコン切替なし）
 7. **T4.13 Flex デザイン刷新** — T4.1a の水準（フラット構造）のまま据え置き
+8. **T4.14 経験投稿の構造化** — 単一 `body` 自由記述に戻す（5 問化を見送る）
 
 ## 9. 完了状況トラッキング
 
@@ -643,3 +685,4 @@ Day 1
 | 2026-07-06 | Day 4 残タスクの範囲確定: T4.2 リッチメニュー本実装を Day 5+ に持ち越し（Quick Reply モックで暫定運用）、T4.9 Post-hoc 正規表現ハルシネーション検出も Day 5+ に持ち越し、T4.1a に welcome Flex 化を追加、T4.3 を 3 サブスコープ (a 残置除去 / b 語尾統一 / c 権限違い応答一貫性) に分割 | kmch4n |
 | 2026-07-08 | T4.12 企業スポンサードPR 実装（FR-S9、第3の収益源）を新設: sponsored.json seed・マッチング挿入・Flex PR 表示・興味ありトラッキングの成果物と完了基準を定義 | kmch4n |
 | 2026-07-09 | T4.13 を新設: 全 Flex（5 種）を kcb_linebot 準拠のカードインカード構造へ刷新し、共通スタイルモジュール src/templates/flex/style.py を新設するデザイン刷新タスク（T4.1a より一段深いビジュアル改善） | kmch4n |
+| 2026-07-09 | T4.14 を新設: 経験投稿の丸投げ body を 5 問（期間/概要/学び/残念/アドバイス）に構造化。個別保存＋合成 body で下流無改修・後方互換を維持し、蓄積情報の質と SECI context 精度を底上げ（docs/04 §4.5・docs/05 §4.3・docs/06 §4.2 を更新） | kmch4n |

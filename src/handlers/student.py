@@ -57,6 +57,7 @@ from src.templates.quick_reply import (
     post_category_quick_reply,
     post_confirm_quick_reply,
     post_share_parent_quick_reply,
+    post_skip_quick_reply,
     profile_start_quick_reply,
     profile_view_quick_reply,
     want_to_do_menu_quick_reply,
@@ -850,11 +851,73 @@ _POST_CATEGORY_LABELS: dict[str, str] = {
 _POST_STEP_ORDER: tuple[str, ...] = (
     "post.category",
     "post.title",
-    "post.body",
+    "post.period",
+    "post.summary",
+    "post.learned",
+    "post.regret",
+    "post.advice",
     "post.area",
     "post.share_parent",
     "post.confirm",
 )
+
+# docs/04 §4.5: the five structured free-text steps that replaced the old
+# single ``post.body`` blob. ``_POST_STEP_META`` drives validation/record,
+# ``_POST_NEXT`` the transition, and ``_POST_ENTRY_PROMPTS`` the question
+# shown when advancing INTO a step (the period question itself is emitted
+# from the post.title branch).
+_POST_TEXT_STEPS: frozenset[str] = frozenset(
+    {"post.period", "post.summary", "post.learned", "post.regret", "post.advice"}
+)
+_POST_STEP_META: dict[str, dict[str, Any]] = {
+    "post.period": {"key": "period", "required": False, "max": posts.MAX_PERIOD_LEN},
+    "post.summary": {
+        "key": "summary",
+        "required": True,
+        "max": posts.MAX_SUMMARY_LEN,
+        "reprompt": "概要を 1 文字以上で入力してください。",
+    },
+    "post.learned": {
+        "key": "learned",
+        "required": True,
+        "max": posts.MAX_LEARNED_LEN,
+        "reprompt": "学べたことを 1 文字以上で入力してください。",
+    },
+    "post.regret": {"key": "regret", "required": False, "max": posts.MAX_REGRET_LEN},
+    "post.advice": {"key": "advice", "required": False, "max": posts.MAX_ADVICE_LEN},
+}
+_POST_NEXT: dict[str, str] = {
+    "post.period": "post.summary",
+    "post.summary": "post.learned",
+    "post.learned": "post.regret",
+    "post.regret": "post.advice",
+    "post.advice": "post.area",
+}
+_POST_AREA_PROMPT = (
+    "📍 場所や店名を教えてください（例: 下鴨神社、進々堂 京大北門前）。\n"
+    "場所がなければ「なし」または「skip」と送ってください。"
+)
+_POST_ENTRY_PROMPTS: dict[str, tuple[str, Any]] = {
+    "post.summary": (
+        "✏️ 何をしましたか？できごとの概要を教えてください。",
+        cancel_quick_reply,
+    ),
+    "post.learned": (
+        "💡 その経験で学べたこと・良かったことは何ですか？",
+        cancel_quick_reply,
+    ),
+    "post.regret": (
+        "😥 残念だったこと・注意しておくべき点はありますか？\n"
+        "なければ「スキップ」と送ってください。",
+        post_skip_quick_reply,
+    ),
+    "post.advice": (
+        "📣 次に同じことをやる人へのアドバイスがあれば教えてください。\n"
+        "なければ「スキップ」と送ってください。",
+        post_skip_quick_reply,
+    ),
+    "post.area": (_POST_AREA_PROMPT, post_area_quick_reply),
+}
 
 
 def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
@@ -874,7 +937,13 @@ def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
 
 
 def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
-    """Handle free-text input for ``post.title`` / ``post.body`` / ``post.area``."""
+    """Handle free-text input for the post flow's text steps.
+
+    Covers ``post.title``, the five structured steps in
+    :data:`_POST_TEXT_STEPS` (period / summary / learned / regret /
+    advice), and ``post.area``. Quick Reply / Postback steps are nudged
+    via :func:`_reprompt_post_step`.
+    """
     user_id = event.source.user_id
     text = event.message.text.strip()
     step = state["state"]
@@ -890,39 +959,20 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
             return
         title = text[: posts.MAX_TITLE_LEN]
         _record(user_id, "title", title)
-        session.set_state(user_id, "post.body", **_context_snapshot(user_id))
+        session.set_state(user_id, "post.period", **_context_snapshot(user_id))
         reply_text(
             event.reply_token,
             (
-                "📝 内容を詳しく教えてください。\n"
-                f"（{posts.MAX_BODY_LEN} 文字以内、少し長くても大丈夫です）"
+                "🗓️ いつ・どのくらいの期間の話ですか？（例: 先週末、6〜7月）\n"
+                "特になければ「スキップ」と送ってください。"
             ),
-            quick_reply=cancel_quick_reply(),
+            quick_reply=post_skip_quick_reply(),
             sender="system",
         )
         return
 
-    if step == "post.body":
-        if not text:
-            reply_text(
-                event.reply_token,
-                "内容を 1 文字以上で入力してください。",
-                quick_reply=cancel_quick_reply(),
-                sender="system",
-            )
-            return
-        body = text[: posts.MAX_BODY_LEN]
-        _record(user_id, "body", body)
-        session.set_state(user_id, "post.area", **_context_snapshot(user_id))
-        reply_text(
-            event.reply_token,
-            (
-                "📍 場所や店名を教えてください（例: 下鴨神社、進々堂 京大北門前）。\n"
-                "場所がなければ「なし」または「skip」と送ってください。"
-            ),
-            quick_reply=post_area_quick_reply(),
-            sender="system",
-        )
+    if step in _POST_TEXT_STEPS:
+        _handle_post_field_text(event, step, text)
         return
 
     if step == "post.area":
@@ -945,6 +995,44 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
         return
 
     logger.warning("Unexpected post step for text input: %s", step)
+
+
+def _handle_post_field_text(event: MessageEvent, step: str, text: str) -> None:
+    """Record one structured field and advance to the next post step.
+
+    Required steps (summary / learned) re-prompt on empty input.
+    Skippable steps (period / regret / advice) map skip tokens to
+    ``None`` via :func:`posts._normalize_skippable`. On success the next
+    step's entry prompt (from :data:`_POST_ENTRY_PROMPTS`) is sent.
+    """
+    user_id = event.source.user_id
+    meta = _POST_STEP_META[step]
+    max_len: int = meta["max"]
+
+    if meta["required"]:
+        if not text:
+            reply_text(
+                event.reply_token,
+                meta["reprompt"],
+                quick_reply=cancel_quick_reply(),
+                sender="system",
+            )
+            return
+        value: str | None = text[:max_len]
+    else:
+        normalized = posts._normalize_skippable(text)
+        value = normalized[:max_len] if normalized is not None else None
+
+    _record(user_id, meta["key"], value)
+    next_state = _POST_NEXT[step]
+    session.set_state(user_id, next_state, **_context_snapshot(user_id))
+    prompt_text, quick_reply_factory = _POST_ENTRY_PROMPTS[next_state]
+    reply_text(
+        event.reply_token,
+        prompt_text,
+        quick_reply=quick_reply_factory(),
+        sender="system",
+    )
 
 
 def handle_post_postback(event: PostbackEvent, data: str) -> None:
@@ -1047,11 +1135,19 @@ def _send_post_confirmation(event: PostbackEvent) -> None:
     area_display = area_normalized if area_normalized is not None else "（指定なし）"
     share = ctx.get("share_with_parent", False)
     share_label = "共有する" if share else "共有しない"
+
+    def _field(value: str | None) -> str:
+        return value if value else "（スキップ）"
+
     summary = (
         "内容を確認してください:\n"
         f"📂 カテゴリ: {category_label}\n"
         f"📝 タイトル: {ctx.get('title', '')}\n"
-        f"📖 本文: {ctx.get('body', '')}\n"
+        f"🗓️ いつ: {_field(ctx.get('period'))}\n"
+        f"✏️ やったこと: {ctx.get('summary', '')}\n"
+        f"💡 学び: {ctx.get('learned', '')}\n"
+        f"😥 残念・注意: {_field(ctx.get('regret'))}\n"
+        f"📣 次の人へ: {_field(ctx.get('advice'))}\n"
         f"📍 場所: {area_display}\n"
         f"\U0001f468‍\U0001f469‍\U0001f467 保護者共有: {share_label}\n\n"
         "この内容で投稿しますか？"
@@ -1074,9 +1170,13 @@ def _finalize_post(event: PostbackEvent) -> None:
             line_user_id=user_id,
             category=ctx.get("category", "other"),
             title=ctx.get("title", ""),
-            body=ctx.get("body", ""),
+            summary=ctx.get("summary", ""),
+            learned=ctx.get("learned", ""),
             area=ctx.get("area"),
             share_with_parent=bool(ctx.get("share_with_parent", False)),
+            period=ctx.get("period"),
+            regret=ctx.get("regret"),
+            advice=ctx.get("advice"),
         )
     except ValueError:
         logger.exception("posts.add_post rejected input")
