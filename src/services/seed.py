@@ -19,6 +19,7 @@ _SEED_FILES = {
     "demo_profiles": ("seed/demo_profiles.json", "demo_profiles"),
     "sponsored": ("seed/sponsored.json", "sponsored"),
     "coupons": ("seed/coupons.json", "coupons"),
+    "prizes": ("seed/prizes.json", "prizes"),
 }
 
 _cache: dict[str, list[dict[str, Any]]] | None = None
@@ -32,9 +33,9 @@ def load_all(force_reload: bool = False) -> dict[str, list[dict[str, Any]]]:
 
     Returns:
         Dictionary keyed by ``areas``, ``stores``, ``events``,
-        ``senior_posts``, ``demo_profiles``, ``sponsored``, ``coupons``.
-        Each value is the ``list`` stored under the corresponding
-        top-level key of the JSON file.
+        ``senior_posts``, ``demo_profiles``, ``sponsored``, ``coupons``,
+        ``prizes``. Each value is the ``list`` stored under the
+        corresponding top-level key of the JSON file.
     """
     global _cache
     if _cache is not None and not force_reload:
@@ -47,7 +48,7 @@ def load_all(force_reload: bool = False) -> dict[str, list[dict[str, Any]]]:
     _cache = loaded
     logger.info(
         "Seed loaded: areas=%d stores=%d events=%d senior_posts=%d "
-        "demo_profiles=%d sponsored=%d coupons=%d",
+        "demo_profiles=%d sponsored=%d coupons=%d prizes=%d",
         len(loaded["areas"]),
         len(loaded["stores"]),
         len(loaded["events"]),
@@ -55,6 +56,7 @@ def load_all(force_reload: bool = False) -> dict[str, list[dict[str, Any]]]:
         len(loaded["demo_profiles"]),
         len(loaded["sponsored"]),
         len(loaded["coupons"]),
+        len(loaded["prizes"]),
     )
     return loaded
 
@@ -92,6 +94,11 @@ def get_sponsored() -> list[dict[str, Any]]:
 def get_coupons() -> list[dict[str, Any]]:
     """Return the coupon entries (FR-S10, docs/05 §4.15)."""
     return load_all()["coupons"]
+
+
+def get_prizes() -> list[dict[str, Any]]:
+    """Return the prize entries (FR-S11, docs/05 §4.17)."""
+    return load_all()["prizes"]
 
 
 def _has_tag_intersection(item_tags: list[str], wanted: list[str]) -> bool:

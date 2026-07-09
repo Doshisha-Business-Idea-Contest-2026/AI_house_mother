@@ -11,6 +11,7 @@ Creates the following files with empty schemas if they do not exist:
   - data/sponsored_engagement.json   {"events": []}
   - data/usage_stats.json            {}
   - data/coupon_distributions.json   {}
+  - data/prize_draws.json            {}
 
 Also ensures data/seed/ exists (seed JSON files are added by later tasks).
 
@@ -35,6 +36,7 @@ INITIAL_FILES: dict[str, Any] = {
     "sponsored_engagement.json": {"events": []},
     "usage_stats.json": {},
     "coupon_distributions.json": {},
+    "prize_draws.json": {},
 }
 
 
