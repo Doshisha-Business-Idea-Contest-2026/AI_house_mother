@@ -263,6 +263,18 @@ def count_all_shared(student_user_id: str) -> int:
     )
 
 
+def count_all(student_user_id: str) -> int:
+    """Return the total lifetime count of a student's experience posts.
+
+    Unlike :func:`count_all_shared` this counts every post regardless of
+    ``share_with_parent``. It is the trigger denominator for coupon
+    distribution (FR-S10, docs/04 §4.8): a batch is awarded every time
+    this total reaches a new multiple of three.
+    """
+    data = _load()
+    return sum(1 for row in data["posts"] if row.get("line_user_id") == student_user_id)
+
+
 def list_month_shared(
     student_user_id: str, year: int, month: int
 ) -> list[dict[str, Any]]:
