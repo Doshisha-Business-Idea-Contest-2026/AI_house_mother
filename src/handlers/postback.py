@@ -57,7 +57,6 @@ def handle_postback(event: PostbackEvent) -> None:
             event.reply_token,
             STUDENT_CONFIRM,
             quick_reply=profile_start_quick_reply(),
-            sender="system",
         )
         return
 
@@ -67,7 +66,6 @@ def handle_postback(event: PostbackEvent) -> None:
             event.reply_token,
             PARENT_CONFIRM,
             quick_reply=main_menu_quick_reply("parent"),
-            sender="system",
         )
         return
 
@@ -256,14 +254,12 @@ def _handle_menu(event: PostbackEvent, data: str) -> None:
                 alt_text=alt_text,
                 contents=contents,
                 quick_reply=qr,
-                sender="system",
             )
             return
         reply_text(
             event.reply_token,
             "メインメニューです👇",
             quick_reply=main_menu_quick_reply(role),
-            sender="system",
         )
         return
 
@@ -280,14 +276,12 @@ def _reply_placeholder(event: PostbackEvent, role: str | None, text: str) -> Non
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
     reply_text(
         event.reply_token,
         text,
         quick_reply=main_menu_quick_reply(role),
-        sender="system",
     )
 
 
@@ -310,7 +304,6 @@ def _reply_wrong_role(
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
 
@@ -322,5 +315,4 @@ def _reply_wrong_role(
             "役割を変える場合は「はじめる」と送って選び直してください。"
         ),
         quick_reply=main_menu_quick_reply(actual_role),
-        sender="system",
     )

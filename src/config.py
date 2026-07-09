@@ -38,35 +38,6 @@ FASTAPI_PORT = int(os.getenv("FASTAPI_PORT", "8084"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 TZ = os.getenv("TZ", "Asia/Tokyo")
 
-# Public base URL used to compose Sender iconUrl values (docs/04 §3.5).
-# Must be reachable over HTTPS by the LINE platform; keep the trailing
-# path element matching the FastAPI router prefix so that the
-# ``StaticFiles`` mount lands under the Apache-proxied path.
-PUBLIC_BASE_URL = os.getenv(
-    "PUBLIC_BASE_URL", "https://linebot.kmchan.jp/ai_house_mother"
-).rstrip("/")
-
-# Sender switch presets (docs/04 §3.5). Each entry maps the SenderPreset
-# name to (display name, iconUrl). ``SENDER_ICON_VERSION`` is appended as
-# a query string to force LINE and any CDN in front of the origin to
-# re-fetch when the underlying PNG files are replaced. Bump it whenever
-# ``static/icons/*.png`` change.
-SENDER_ICON_VERSION = "20260706"
-SENDER_PRESETS: dict[str, tuple[str, str]] = {
-    "friendly": (
-        "AI寮母",
-        f"{PUBLIC_BASE_URL}/static/icons/friendly.png?v={SENDER_ICON_VERSION}",
-    ),
-    "system": (
-        "AI寮母 System",
-        f"{PUBLIC_BASE_URL}/static/icons/system.png?v={SENDER_ICON_VERSION}",
-    ),
-    "notify": (
-        "AI寮母 お知らせ",
-        f"{PUBLIC_BASE_URL}/static/icons/notify.png?v={SENDER_ICON_VERSION}",
-    ),
-}
-
 # When true, gemini.py returns seed-based static fallback answers instead of
 # calling the Gemini API. Used for local development or during a Gemini
 # outage rehearsal.

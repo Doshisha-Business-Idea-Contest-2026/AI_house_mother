@@ -93,7 +93,6 @@ def handle_profile_view(event: MessageEvent | PostbackEvent) -> None:
             event.reply_token,
             "プロフィールがまだ登録されていません。\n登録すると、あなたに合った活動提案や生活相談ができます。",
             quick_reply=profile_start_quick_reply(),
-            sender="system",
         )
         return
 
@@ -103,7 +102,6 @@ def handle_profile_view(event: MessageEvent | PostbackEvent) -> None:
         alt_text="👤 あなたのプロフィール",
         contents=build_profile_view_bubble(profile),
         quick_reply=profile_view_quick_reply(),
-        sender="system",
     )
 
 
@@ -116,13 +114,11 @@ def start_profile_flow(event: MessageEvent | PostbackEvent) -> None:
         reply_text(
             event.reply_token,
             "編集を始めます。今の内容はいったん置いておいて、最初から入力し直します（登録すると上書きされます）。\n\n🏫 まずは大学名を教えてください（例: 同志社大学）",
-            sender="system",
         )
     else:
         reply_text(
             event.reply_token,
             "プロフィール登録を始めます✨\n\n🏫 まずは大学名を教えてください（例: 同志社大学）",
-            sender="system",
         )
     session.set_state(user_id, "profile.university")
 
@@ -141,7 +137,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
         reply_text(
             event.reply_token,
             f"入力が長すぎます。{MAX_TEXT_LEN} 文字以内でお願いします。",
-            sender="system",
         )
         return
 
@@ -153,7 +148,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
         reply_text(
             event.reply_token,
             "ありがとうございます！\n📚 次に、学部を教えてください（例: 経済学部）",
-            sender="system",
         )
         return
 
@@ -164,7 +158,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
             event.reply_token,
             "🎓 学年を選んでください",
             quick_reply=grade_quick_reply(),
-            sender="system",
         )
         return
 
@@ -175,7 +168,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
         reply_text(
             event.reply_token,
             "🎯 やってみたいこと・興味のあることを教えてください（自由記述）",
-            sender="system",
         )
         return
 
@@ -189,7 +181,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
             event.reply_token,
             "学年は下のメニューから選んでください🎓",
             quick_reply=grade_quick_reply(),
-            sender="system",
         )
         return
 
@@ -198,7 +189,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
             event.reply_token,
             "興味のタグは下のメニューから選んでください（複数OK）。選び終わったら ✅ 完了 を押してください。",
             quick_reply=interests_quick_reply(),
-            sender="system",
         )
         return
 
@@ -207,7 +197,6 @@ def handle_profile_text(event: MessageEvent, state: dict[str, Any]) -> None:
             event.reply_token,
             "下のメニューで「登録する」か「やり直す」を選んでください。",
             quick_reply=confirm_quick_reply(),
-            sender="system",
         )
         return
 
@@ -228,7 +217,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
         reply_text(
             event.reply_token,
             "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
-            sender="system",
         )
         return
 
@@ -240,14 +228,13 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
             event.reply_token,
             "✨ 興味のあることを選んでください（複数選択OK）。選び終わったら ✅ 完了 を押してください",
             quick_reply=interests_quick_reply(),
-            sender="system",
         )
         return
 
     if data.startswith("profile:interest:"):
         tag = data.removeprefix("profile:interest:")
         if tag not in INTEREST_TAGS:
-            reply_text(event.reply_token, "未対応のタグです。", sender="system")
+            reply_text(event.reply_token, "未対応のタグです。")
             return
         current = _get_context_value(user_id, "interests", [])
         if tag in current:
@@ -262,7 +249,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
             event.reply_token,
             f"「{tag}」を{action}しました。\n現在選択中: {selected_str}\n他にあれば選ぶか、✅ 完了 を押してください",
             quick_reply=interests_quick_reply(),
-            sender="system",
         )
         return
 
@@ -273,7 +259,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
                 event.reply_token,
                 "少なくとも 1 つはタグを選んでください。",
                 quick_reply=interests_quick_reply(),
-                sender="system",
             )
             return
         session.set_state(user_id, "profile.effort", **_context_snapshot(user_id))
@@ -281,7 +266,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
             event.reply_token,
             "💪 最近頑張っていることを教えてください（自由記述、なければ「スキップ」）",
             quick_reply=effort_quick_reply(),
-            sender="system",
         )
         return
 
@@ -290,7 +274,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
             reply_text(
                 event.reply_token,
                 "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
-                sender="system",
             )
             return
         _finalize_profile(event)
@@ -301,7 +284,6 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
         reply_text(
             event.reply_token,
             "もう一度最初から登録します。\n🏫 大学名を教えてください（例: 同志社大学）",
-            sender="system",
         )
         session.set_state(user_id, "profile.university")
         return
@@ -358,9 +340,7 @@ def _send_confirmation(event: MessageEvent) -> None:
         "この内容で登録しますか？"
     )
     session.set_state(user_id, "profile.confirm", **ctx)
-    reply_text(
-        event.reply_token, summary, quick_reply=confirm_quick_reply(), sender="system"
-    )
+    reply_text(event.reply_token, summary, quick_reply=confirm_quick_reply())
 
 
 def _finalize_profile(event: PostbackEvent) -> None:
@@ -384,7 +364,6 @@ def _finalize_profile(event: PostbackEvent) -> None:
         event.reply_token,
         "プロフィール登録完了です🎉\n\n下のメニューから使いたい機能を選んでください。",
         quick_reply=main_menu_quick_reply(role),
-        sender="system",
     )
     logger.info("Profile saved for %s", user_id[:8])
 
@@ -432,7 +411,6 @@ def _require_profile_or_prompt(
             event.reply_token,
             "まずは 👤 プロフィール登録をお願いします。\nあなたに合った提案ができるようになります。",
             quick_reply=profile_start_quick_reply(),
-            sender="system",
         )
         return None
     return profile
@@ -451,7 +429,6 @@ def start_want_to_do_menu(event: MessageEvent | PostbackEvent) -> None:
         event.reply_token,
         "どんな切り口で探しますか？🔎\n先輩や仲間の取り組みからも、地域のイベントからも探せます。",
         quick_reply=want_to_do_menu_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -474,12 +451,11 @@ def _send_activity_carousel(
 
     match = sponsored.match_for_profile(profile)
     flex = build_activity_carousel(activities, keys, sponsored=match)
-    push_flex(user_id, alt_text=alt_text, contents=flex, sender="friendly")
+    push_flex(user_id, alt_text=alt_text, contents=flex)
     push_text(
         user_id,
         "気になる提案があれば、カード内のボタンを押してください👇",
         quick_reply=_activity_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -507,7 +483,6 @@ def handle_want_events(event: MessageEvent | PostbackEvent) -> None:
             user_id,
             "うまく提案を思いつけませんでした。少し時間を空けてもう一度お試しください🙇",
             quick_reply=main_menu_quick_reply("student"),
-            sender="friendly",
         )
         return
 
@@ -545,7 +520,6 @@ def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
             user_id,
             "うまく提案を思いつけませんでした。少し時間を空けてもう一度お試しください🙇",
             quick_reply=main_menu_quick_reply("student"),
-            sender="friendly",
         )
         return
 
@@ -566,7 +540,6 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
             event.reply_token,
             "対象の情報を復元できませんでした（時間が経ちすぎたようです）。もう一度「やりたいこと相談」を試してください。",
             quick_reply=_activity_quick_reply(),
-            sender="system",
         )
         return
 
@@ -581,7 +554,7 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
             f"「{activity.get('title', '')}」の詳しい情報を取得できませんでした。"
             "担当団体に直接お問い合わせください。"
         )
-    push_text(user_id, detail, quick_reply=_activity_quick_reply(), sender="friendly")
+    push_text(user_id, detail, quick_reply=_activity_quick_reply())
 
 
 def handle_activity_participated(event: PostbackEvent, key: str) -> None:
@@ -592,7 +565,6 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
             event.reply_token,
             "対象の情報を復元できませんでした（時間が経ちすぎたようです）。改めて「やりたいこと相談」を試してください。",
             quick_reply=_activity_quick_reply(),
-            sender="system",
         )
         return
 
@@ -603,7 +575,6 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
             "詳しく投稿したい場合は「✏️ 経験を投稿」から記録できます。"
         ),
         quick_reply=_activity_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -620,7 +591,6 @@ def handle_sponsored_interest(event: PostbackEvent, sponsor_id: str) -> None:
             event.reply_token,
             "対象の案内を復元できませんでした。もう一度「やりたいこと相談」を試してください。",
             quick_reply=_activity_quick_reply(),
-            sender="system",
         )
         return
 
@@ -633,7 +603,6 @@ def handle_sponsored_interest(event: PostbackEvent, sponsor_id: str) -> None:
             "※この案内は協賛企業からの提供です。"
         ),
         quick_reply=_activity_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -684,7 +653,6 @@ def start_life_consultation(event: MessageEvent | PostbackEvent) -> None:
         event.reply_token,
         "💬 生活のお困りごとをどうぞ。「熱っぽくて病院を探しています」のように自由に書いてください。",
         quick_reply=_life_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -698,7 +666,6 @@ def reprompt_life_non_text(event: MessageEvent) -> None:
         event.reply_token,
         "テキストで質問を送ってください。中断する場合は「🚫 相談を終える」を押してね。",
         quick_reply=_life_quick_reply(),
-        sender="friendly",
     )
 
 
@@ -721,7 +688,6 @@ def handle_life_consultation(event: MessageEvent) -> None:
             event.reply_token,
             _EMERGENCY_LIFE_REPLY,
             quick_reply=_life_quick_reply(),
-            sender="friendly",
         )
         return
     if emergency == "medical":
@@ -730,7 +696,6 @@ def handle_life_consultation(event: MessageEvent) -> None:
             event.reply_token,
             _EMERGENCY_MEDICAL_REPLY,
             quick_reply=_life_quick_reply(),
-            sender="friendly",
         )
         return
     if emergency == "crime":
@@ -739,7 +704,6 @@ def handle_life_consultation(event: MessageEvent) -> None:
             event.reply_token,
             _EMERGENCY_CRIME_REPLY,
             quick_reply=_life_quick_reply(),
-            sender="friendly",
         )
         return
 
@@ -792,7 +756,7 @@ def handle_life_consultation(event: MessageEvent) -> None:
         sorted(result["matched_categories"]),
     )
 
-    push_text(user_id, final, quick_reply=_life_quick_reply(), sender="friendly")
+    push_text(user_id, final, quick_reply=_life_quick_reply())
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
 
@@ -823,7 +787,6 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
             event.reply_token,
             "コードの発行に失敗しました🙇 少し時間を空けてもう一度お試しください。",
             quick_reply=main_menu_quick_reply("student"),
-            sender="system",
         )
         return
 
@@ -835,7 +798,6 @@ def start_invitation_flow(event: MessageEvent | PostbackEvent) -> None:
         alt_text=alt_text,
         contents=bubble,
         quick_reply=invitation_menu_quick_reply(),
-        sender="notify",
     )
     logger.info(
         "invitation_issued user=%s code_len=%d",
@@ -942,7 +904,6 @@ def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
             "（途中で「キャンセル」と送るとやめられます）"
         ),
         quick_reply=post_category_quick_reply(),
-        sender="system",
     )
 
 
@@ -968,7 +929,6 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
                 event.reply_token,
                 "タイトルを 1 文字以上で入力してください。",
                 quick_reply=cancel_quick_reply(),
-                sender="system",
             )
             return
         _record(user_id, "title", text[: posts.MAX_TITLE_LEN])
@@ -985,7 +945,6 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
                 "共有しないを選ぶと、この投稿は保護者には届きません。"
             ),
             quick_reply=post_share_parent_quick_reply(),
-            sender="system",
         )
         return
 
@@ -1015,7 +974,6 @@ def _handle_post_field_text(event: MessageEvent, step: str, text: str) -> None:
                 event.reply_token,
                 meta["reprompt"],
                 quick_reply=cancel_quick_reply(),
-                sender="system",
             )
             return
         value: str | None = text[:max_len]
@@ -1031,7 +989,6 @@ def _handle_post_field_text(event: MessageEvent, step: str, text: str) -> None:
         event.reply_token,
         prompt_text,
         quick_reply=quick_reply_factory(),
-        sender="system",
     )
 
 
@@ -1045,7 +1002,6 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
             event.reply_token,
             "セッションが切れました。もう一度「✏️ 経験を投稿」からやり直してください。",
             quick_reply=main_menu_quick_reply("student"),
-            sender="system",
         )
         return
 
@@ -1056,7 +1012,6 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
                 event.reply_token,
                 "そのカテゴリには対応していません。",
                 quick_reply=post_category_quick_reply(),
-                sender="system",
             )
             return
         _record(user_id, "category", category)
@@ -1068,7 +1023,6 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
                 "特になければ「スキップ」と送ってください。"
             ),
             quick_reply=post_skip_quick_reply(),
-            sender="system",
         )
         return
 
@@ -1079,7 +1033,6 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
                 event.reply_token,
                 "共有の選択肢は「共有する」か「共有しない」です。",
                 quick_reply=post_share_parent_quick_reply(),
-                sender="system",
             )
             return
         _record(user_id, "share_with_parent", choice == "yes")
@@ -1092,7 +1045,6 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
             event.reply_token,
             f"✏️ 新しいタイトルを入力してください（{posts.MAX_TITLE_LEN} 文字以内）。",
             quick_reply=cancel_quick_reply(),
-            sender="system",
         )
         return
 
@@ -1115,21 +1067,18 @@ def _reprompt_post_step(event: MessageEvent, step: str) -> None:
             event.reply_token,
             "下のメニューからカテゴリを選んでください。",
             quick_reply=post_category_quick_reply(),
-            sender="system",
         )
     elif step == "post.share_parent":
         reply_text(
             event.reply_token,
             "下のメニューで「共有する」か「共有しない」を選んでください。",
             quick_reply=post_share_parent_quick_reply(),
-            sender="system",
         )
     elif step == "post.confirm":
         reply_text(
             event.reply_token,
             "下のメニューで「投稿する」か「やり直す」を選んでください。",
             quick_reply=post_confirm_quick_reply(),
-            sender="system",
         )
 
 
@@ -1219,7 +1168,6 @@ def _run_post_finalize(event: PostbackEvent) -> None:
         user_id,
         _build_post_confirmation_text(ctx),
         quick_reply=post_confirm_quick_reply(),
-        sender="system",
     )
 
 
@@ -1232,7 +1180,6 @@ def _send_post_confirmation(event: PostbackEvent) -> None:
         event.reply_token,
         _build_post_confirmation_text(ctx),
         quick_reply=post_confirm_quick_reply(),
-        sender="system",
     )
 
 
@@ -1260,7 +1207,6 @@ def _finalize_post(event: PostbackEvent) -> None:
             event.reply_token,
             "投稿の保存に失敗しました🙇 少し時間を空けてもう一度お試しください。",
             quick_reply=main_menu_quick_reply("student"),
-            sender="system",
         )
         session.clear_state(user_id)
         return
@@ -1276,7 +1222,6 @@ def _finalize_post(event: PostbackEvent) -> None:
         event.reply_token,
         f"投稿を保存しました🎉（{record['post_id']}）\n{share_line}",
         quick_reply=main_menu_quick_reply("student"),
-        sender="system",
     )
     logger.info(
         "post_finalized user=%s post_id=%s share=%s",
