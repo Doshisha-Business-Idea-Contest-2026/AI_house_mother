@@ -137,6 +137,20 @@ def add_post(
     return record
 
 
+def count_all_shared(student_user_id: str) -> int:
+    """Return the total lifetime count of ``share_with_parent=True`` posts.
+
+    Used by the parent monthly report (FR-P3 extension) to show the
+    cumulative "頑張ったこと" total alongside the current month's count.
+    """
+    data = _load()
+    return sum(
+        1
+        for row in data["posts"]
+        if row.get("line_user_id") == student_user_id and row.get("share_with_parent")
+    )
+
+
 def list_month_shared(
     student_user_id: str, year: int, month: int
 ) -> list[dict[str, Any]]:

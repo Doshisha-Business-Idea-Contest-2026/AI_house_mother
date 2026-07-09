@@ -8,6 +8,8 @@ Creates the following files with empty schemas if they do not exist:
   - data/parent_links.json           {"links": []}
   - data/session_activities.json     {"activities": {}}
   - data/monthly_report_state.json   {"last_batch": null}
+  - data/sponsored_engagement.json   {"events": []}
+  - data/usage_stats.json            {}
 
 Also ensures data/seed/ exists (seed JSON files are added by later tasks).
 
@@ -30,6 +32,7 @@ INITIAL_FILES: dict[str, Any] = {
     "session_activities.json": {"activities": {}},
     "monthly_report_state.json": {"last_batch": None},
     "sponsored_engagement.json": {"events": []},
+    "usage_stats.json": {},
 }
 
 

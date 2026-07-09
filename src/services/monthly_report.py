@@ -1,13 +1,16 @@
-"""Monthly summary generation for parents (FR-P3).
+"""Monthly summary generation for parents (FR-P3 + extension).
 
 Pull path (this file's initial version): assemble the current-month
 summary of a linked student's shared posts and hand it to the Flex
 builder. Push path (added in T3.4-b) reuses the same helpers and the
 same Flex to send a previous-month digest via ``push_monthly_reports.py``.
 
-Spec: ``docs/04_functional_spec.md`` §5.3 and ``docs/05_data_model.md``
-§7. The privacy invariant (``share_with_parent == True`` only) is
-enforced by ``posts.list_month_shared`` which this module wraps.
+Extension (2026-07-09): the report dict now carries the previous month's
+count, the lifetime total, current-month usage counters, and a Gemini
+authored "AI 寮母より" closing line. See ``docs/04_functional_spec.md``
+§5.3, ``docs/05_data_model.md`` §7 and §4.14, and ``docs/06_ai_spec.md``
+§4.4. The privacy invariant (``share_with_parent == True`` only) is
+still enforced by ``posts.list_month_shared``.
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services import parent_links, posts
+from src.services import gemini, parent_links, posts, usage_stats
 from src.services.line_reply import push_flex
 from src.services.storage import load_json, save_json
 from src.templates.flex.monthly_report import build_monthly_report_bubble
@@ -28,6 +31,12 @@ logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
 
 MAX_POSTS_IN_REPORT = 5
+
+# docs/04 §5.3: below this combined life+activity consultation count we
+# switch the "今月の利用" line to a qualitative sentence instead of
+# printing raw numbers. Kept as a service-level constant so the Flex
+# builder stays a dumb renderer.
+LOW_CONSULT_THRESHOLD = 3
 
 # Placeholder shown while profile.display_name is not part of MVP scope.
 DEFAULT_STUDENT_DISPLAY = "あなたのお子さん"
@@ -55,6 +64,77 @@ def _trim(posts_in: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return ordered[:MAX_POSTS_IN_REPORT]
 
 
+def _prev_year_month(year: int, month: int) -> tuple[int, int]:
+    """Return the ``(year, month)`` of the month before ``(year, month)``."""
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1
+
+
+def _assemble_report(
+    student_user_id: str,
+    ref_year: int,
+    ref_month: int,
+    year_month: str,
+) -> dict[str, Any]:
+    """Build the full report dict for ``year_month`` (Pull and Push share this).
+
+    Reads current-month posts, previous-month count, lifetime total, the
+    current-month usage bucket, and asks Gemini for the closing summary.
+    Every downstream renderer receives the same shape.
+    """
+    month_posts = posts.list_month_shared(student_user_id, ref_year, ref_month)
+    prev_year, prev_month = _prev_year_month(ref_year, ref_month)
+    prev_count = len(posts.list_month_shared(student_user_id, prev_year, prev_month))
+    total_count = posts.count_all_shared(student_user_id)
+    usage = usage_stats.get_month(student_user_id, year_month)
+
+    profile = _load_profile(student_user_id)
+    ai_summary = gemini.summarize_month(
+        profile=profile,
+        year_month=year_month,
+        posts_month=month_posts,
+        usage=usage,
+    )
+
+    trimmed = _trim(month_posts)
+    return {
+        "student_user_id": student_user_id,
+        "year_month": year_month,
+        "posts": trimmed,
+        "student_display": DEFAULT_STUDENT_DISPLAY,
+        "current_count": len(month_posts),
+        "prev_count": prev_count,
+        "total_count": total_count,
+        "usage": usage,
+        "ai_summary": ai_summary,
+    }
+
+
+def _load_profile(student_user_id: str) -> dict[str, Any] | None:
+    # Imported lazily to keep the module import cycle small — profiles
+    # only matter for the AI summary tone hint, not the core report.
+    from src.services import profiles
+
+    return profiles.get_profile(student_user_id)
+
+
+def is_report_empty(report: dict[str, Any]) -> bool:
+    """Return ``True`` when the report has nothing worth showing to a parent.
+
+    Used by both the Pull path (to fall back to a plain-text nudge) and
+    the Push path (to skip sending entirely, docs/04 §5.3 B5). A report
+    counts as "empty" only when both the current-month shared posts *and*
+    the current-month usage counters are zero — a month with 0 posts but
+    non-zero consultation counts is not empty (the second-layer + AI
+    summary still convey something to the parent).
+    """
+    if report.get("posts"):
+        return False
+    usage = report.get("usage") or {}
+    return sum(int(v or 0) for v in usage.values()) == 0
+
+
 def build_current_month_report(
     student_user_id: str, now_jst: datetime | None = None
 ) -> dict[str, Any]:
@@ -66,18 +146,16 @@ def build_current_month_report(
             current wall clock.
 
     Returns:
-        Dict with ``year_month`` (``"YYYY-MM"``), ``posts`` (up to
-        :data:`MAX_POSTS_IN_REPORT` entries, newest first) and
-        ``student_display`` used by the Flex builder.
+        Report dict shaped for :func:`build_monthly_report_bubble` (see
+        docs/05 §7 for the field table).
     """
     ref = (now_jst or datetime.now(JST)).astimezone(JST)
-    month_posts = posts.list_month_shared(student_user_id, ref.year, ref.month)
-    return {
-        "student_user_id": student_user_id,
-        "year_month": _year_month(ref),
-        "posts": _trim(month_posts),
-        "student_display": DEFAULT_STUDENT_DISPLAY,
-    }
+    return _assemble_report(
+        student_user_id=student_user_id,
+        ref_year=ref.year,
+        ref_month=ref.month,
+        year_month=_year_month(ref),
+    )
 
 
 def build_previous_month_report(
@@ -103,13 +181,12 @@ def build_previous_month_report(
     else:
         year, month, ym = _parse_year_month(target_year_month)
 
-    month_posts = posts.list_month_shared(student_user_id, year, month)
-    return {
-        "student_user_id": student_user_id,
-        "year_month": ym,
-        "posts": _trim(month_posts),
-        "student_display": DEFAULT_STUDENT_DISPLAY,
-    }
+    return _assemble_report(
+        student_user_id=student_user_id,
+        ref_year=year,
+        ref_month=month,
+        year_month=ym,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +244,7 @@ def _resolve_target_year_month(
 def _alt_text(report: dict[str, Any]) -> str:
     return (
         f"📊 {report['student_display']}の{report['year_month']}"
-        f" 頑張ったこと {len(report['posts'])} 件"
+        f" 頑張ったこと {report.get('current_count', len(report['posts']))} 件"
     )
 
 
@@ -196,10 +273,10 @@ def push_previous_month_to_all(
                 "skipped_batch": bool,
             }
 
-        Zero-post ``(parent, student)`` pairs are silently skipped
-        (``empty`` counter) and never generate a message. Per-parent
-        LINE API errors are caught and counted in ``errors``; the batch
-        proceeds to the next recipient.
+        Empty ``(parent, student)`` pairs (0 shared posts *and* 0 usage
+        counts) are silently skipped (``empty`` counter) and never
+        generate a message. Per-parent LINE API errors are caught and
+        counted in ``errors``; the batch proceeds to the next recipient.
     """
     executed_at = datetime.now(JST)
     ym = _resolve_target_year_month(now_jst, target_year_month)
@@ -227,15 +304,13 @@ def push_previous_month_to_all(
     counters = {"sent": 0, "empty": 0, "errors": 0}
     for parent_user_id, student_user_id in parent_links.list_all_active_pairs():
         try:
-            month_posts = posts.list_month_shared(student_user_id, year, month)
-            trimmed = _trim(month_posts)
-            report = {
-                "student_user_id": student_user_id,
-                "year_month": ym,
-                "posts": trimmed,
-                "student_display": DEFAULT_STUDENT_DISPLAY,
-            }
-            if not trimmed:
+            report = _assemble_report(
+                student_user_id=student_user_id,
+                ref_year=year,
+                ref_month=month,
+                year_month=ym,
+            )
+            if is_report_empty(report):
                 counters["empty"] += 1
                 logger.info(
                     "monthly_push empty parent=%s student=%s year_month=%s",
@@ -244,11 +319,7 @@ def push_previous_month_to_all(
                     ym,
                 )
                 continue
-            bubble = build_monthly_report_bubble(
-                student_display=report["student_display"],
-                year_month=report["year_month"],
-                posts=report["posts"],
-            )
+            bubble = build_monthly_report_bubble(report)
             push_flex(
                 parent_user_id,
                 alt_text=_alt_text(report),
@@ -263,7 +334,7 @@ def push_previous_month_to_all(
                 parent_user_id[:8],
                 student_user_id[:8],
                 ym,
-                len(trimmed),
+                report.get("current_count", 0),
             )
         except Exception:
             counters["errors"] += 1

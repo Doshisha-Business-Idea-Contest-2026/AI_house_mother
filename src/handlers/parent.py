@@ -32,6 +32,8 @@ MAX_LINK_FAIL = 5
 LINK_PROMPT = (
     "🔑 お子さんから受け取った 6 桁のコードを入力してください（英数字、大文字）\n"
     "例: A3F7K9\n\n"
+    "🔒 連携すると、お子さんが「保護者に共有する」で投稿した頑張ったことに加え、"
+    "生活・活動相談の利用状況（回数）が月次レポートで届きます。\n\n"
     "やめる場合は「キャンセル」と送ってください。"
 )
 
@@ -65,7 +67,8 @@ _LINK_COMPLETED_STUDENT = (
 
 _LINK_COMPLETED_PARENT = (
     "🎉 学生さんとの連携が完了しました！\n\n"
-    "📊 これから「今月のレポート」から、学生さんが共有した頑張りが確認できます。"
+    "📊 これから「今月のレポート」から、学生さんが共有した頑張りに加え、"
+    "生活・活動相談の利用状況（回数）と、AI寮母からの月次総括が確認できます。"
 )
 
 
@@ -204,7 +207,7 @@ def _reply_report_for(
     use_reply_token: bool,
 ) -> None:
     report = monthly_report.build_current_month_report(student_user_id)
-    if not report["posts"]:
+    if monthly_report.is_report_empty(report):
         text = (
             f"📊 {report['student_display']}の今月（{report['year_month']}）"
             "はまだ頑張ったことの記録がありません。\n"
@@ -219,14 +222,10 @@ def _reply_report_for(
             )
         return
 
-    bubble = build_monthly_report_bubble(
-        student_display=report["student_display"],
-        year_month=report["year_month"],
-        posts=report["posts"],
-    )
+    bubble = build_monthly_report_bubble(report)
     alt_text = (
         f"📊 {report['student_display']}の今月（{report['year_month']}）"
-        f" 頑張ったこと {len(report['posts'])} 件"
+        f" 頑張ったこと {report.get('current_count', len(report['posts']))} 件"
     )
     if use_reply_token:
         reply_flex(
@@ -240,7 +239,7 @@ def _reply_report_for(
 
 def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
     report = monthly_report.build_current_month_report(student_user_id)
-    if not report["posts"]:
+    if monthly_report.is_report_empty(report):
         push_text(
             parent_user_id,
             (
@@ -251,14 +250,10 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
             sender="notify",
         )
         return
-    bubble = build_monthly_report_bubble(
-        student_display=report["student_display"],
-        year_month=report["year_month"],
-        posts=report["posts"],
-    )
+    bubble = build_monthly_report_bubble(report)
     alt_text = (
         f"📊 {report['student_display']}の今月（{report['year_month']}）"
-        f" 頑張ったこと {len(report['posts'])} 件"
+        f" 頑張ったこと {report.get('current_count', len(report['posts']))} 件"
     )
     push_flex(
         parent_user_id,

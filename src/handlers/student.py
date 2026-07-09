@@ -30,6 +30,7 @@ from src.services import (
     prompts,
     session,
     sponsored,
+    usage_stats,
     users,
 )
 from src.services.line_reply import (
@@ -370,6 +371,7 @@ def _finalize_profile(event: PostbackEvent) -> None:
         "want_to_do": ctx.get("want_to_do", ""),
     }
     profiles.save_profile(user_id, profile)
+    usage_stats.record(user_id, "profile")
     session.clear_state(user_id)
 
     role = users.get_role(user_id) or "student"
@@ -483,6 +485,7 @@ def handle_want_events(event: MessageEvent | PostbackEvent) -> None:
         return
 
     user_id = event.source.user_id
+    usage_stats.record(user_id, "activity")
     # Show the LINE loading indicator so the user sees a native
     # "typing" animation while we wait for Gemini. reply_token is
     # intentionally left unused; the carousel goes out via push below.
@@ -523,6 +526,7 @@ def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
         return
 
     user_id = event.source.user_id
+    usage_stats.record(user_id, "activity")
     show_loading(user_id)
 
     try:
@@ -734,6 +738,7 @@ def handle_life_consultation(event: MessageEvent) -> None:
         )
         return
 
+    usage_stats.record(user_id, "life")
     # docs/04 §3.6: show the native loading indicator while we search and
     # call Gemini; the Gemini response goes out below as a push.
     show_loading(user_id)
@@ -1084,6 +1089,7 @@ def _finalize_post(event: PostbackEvent) -> None:
         session.clear_state(user_id)
         return
 
+    usage_stats.record(user_id, "post")
     session.clear_state(user_id)
     share_line = (
         "保護者に「頑張ったこと」として届きます✨"
