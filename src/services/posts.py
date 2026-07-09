@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
 
 _FILE = "posts.json"
-_EMPTY: dict[str, list] = {"posts": []}
 
 POST_ID_PREFIX = "P"
 POST_ID_DIGITS = 5
@@ -40,11 +39,28 @@ CATEGORY_VALUES: tuple[str, ...] = (
     "other",
 )
 MAX_TITLE_LEN = 40
-MAX_BODY_LEN = 500
+# ``body`` is a composed/derived field (see ``compose_body``); its cap must
+# accommodate the concatenation of the five structured fields plus their
+# ``【…】`` labels, so it is larger than any single field.
+MAX_BODY_LEN = 1200
+MAX_PERIOD_LEN = 100
+MAX_SUMMARY_LEN = 300
+MAX_LEARNED_LEN = 200
+MAX_REGRET_LEN = 200
+MAX_ADVICE_LEN = 200
+
+# docs/04 §4.5: tokens that mean "no value" for skippable free-text steps
+# (period / regret / advice) and the area step. Matched case-insensitively.
+_SKIP_TOKENS: frozenset[str] = frozenset({"skip", "スキップ", "なし", "無し"})
 
 
 def _load() -> dict[str, Any]:
-    data = load_json(_FILE, default=_EMPTY)
+    # Pass ``default=None`` (not a shared ``{"posts": []}`` constant): a
+    # module-level mutable default is aliased across calls, so appending
+    # to it when the file is missing would leak records between writes.
+    data = load_json(_FILE, default=None)
+    if not isinstance(data, dict):
+        data = {}
     if "posts" not in data:
         data["posts"] = []
     return data
@@ -70,48 +86,129 @@ def _next_post_id(existing: list[dict[str, Any]]) -> str:
     return f"{POST_ID_PREFIX}{max_num + 1:0{POST_ID_DIGITS}d}"
 
 
+def _normalize_skippable(text: str | None) -> str | None:
+    """Normalize a skippable free-text input to ``str`` or ``None``.
+
+    Empty strings and the skip tokens in :data:`_SKIP_TOKENS`
+    (``skip`` / ``スキップ`` / ``なし`` / ``無し``, case-insensitive) are
+    treated as "no value" per docs/04 §4.5. Used by the optional post
+    steps (period / regret / advice) and by :func:`_normalize_area`.
+
+    Args:
+        text: Raw user input, or ``None``.
+
+    Returns:
+        The stripped text, or ``None`` when it is empty or a skip token.
+    """
+    if text is None:
+        return None
+    stripped = text.strip()
+    if not stripped:
+        return None
+    if stripped.lower() in _SKIP_TOKENS:
+        return None
+    return stripped
+
+
 def _normalize_area(area: str | None) -> str | None:
     """Normalize free-text area input to ``str`` or ``None``.
 
-    Empty strings and the tokens ``なし``/``無し``/``skip`` (any case)
-    are treated as "no area" per docs/04 §4.5.
+    Thin wrapper over :func:`_normalize_skippable` kept for call-site
+    clarity; the area step shares the same skip-token semantics.
     """
-    if area is None:
+    return _normalize_skippable(area)
+
+
+def compose_body(
+    period: str | None,
+    summary: str | None,
+    learned: str | None,
+    regret: str | None,
+    advice: str | None,
+) -> str:
+    """Compose the derived ``body`` from the five structured post fields.
+
+    Non-empty fields are rendered as ``【label】value`` lines in a fixed
+    order and joined by newlines (docs/04 §4.5, docs/05 §4.3). Empty or
+    skipped fields are omitted so the body stays clean. The result feeds
+    both the parent monthly report preview and the anonymized SECI
+    context, so the two downstream readers need no changes.
+
+    Args:
+        period: When / duration (optional).
+        summary: What happened (required upstream).
+        learned: What was learned / went well (required upstream).
+        regret: What was disappointing / caveats (optional).
+        advice: Advice for the next person (optional).
+
+    Returns:
+        The composed body, truncated to :data:`MAX_BODY_LEN`.
+    """
+    sections: list[tuple[str, str | None]] = [
+        ("いつ", period),
+        ("やったこと", summary),
+        ("学び", learned),
+        ("残念・注意", regret),
+        ("次の人へ", advice),
+    ]
+    lines = [
+        f"【{label}】{value.strip()}"
+        for label, value in sections
+        if value is not None and value.strip()
+    ]
+    return "\n".join(lines)[:MAX_BODY_LEN]
+
+
+def _truncate(text: str | None, limit: int) -> str | None:
+    """Trim and cap an optional field, preserving ``None``."""
+    if text is None:
         return None
-    stripped = area.strip()
-    if not stripped:
-        return None
-    if stripped.lower() in {"skip"}:
-        return None
-    if stripped in {"なし", "無し"}:
-        return None
-    return stripped
+    return text.strip()[:limit]
 
 
 def add_post(
     line_user_id: str,
     category: str,
     title: str,
-    body: str,
+    summary: str,
+    learned: str,
     area: str | None,
     share_with_parent: bool,
+    period: str | None = None,
+    regret: str | None = None,
+    advice: str | None = None,
 ) -> dict[str, Any]:
-    """Append a new post and return the stored record.
+    """Append a new structured post and return the stored record.
+
+    The five structured fields are stored individually and also folded
+    into a composed ``body`` via :func:`compose_body`, so the parent
+    monthly report and the SECI context (both read ``body``) keep working
+    unchanged (docs/04 §4.5, docs/05 §4.3).
 
     Args:
         line_user_id: Author LINE user id.
         category: One of :data:`CATEGORY_VALUES`.
         title: Post title (truncated to :data:`MAX_TITLE_LEN`).
-        body: Post body (truncated to :data:`MAX_BODY_LEN`).
+        summary: What happened (required, truncated to :data:`MAX_SUMMARY_LEN`).
+        learned: What was learned (required, truncated to :data:`MAX_LEARNED_LEN`).
         area: Free-text location, normalized via :func:`_normalize_area`.
         share_with_parent: Whether the post is exposed to linked parents
             through the monthly summary.
+        period: When / duration (optional, :data:`MAX_PERIOD_LEN`).
+        regret: What was disappointing / caveats (optional, :data:`MAX_REGRET_LEN`).
+        advice: Advice for the next person (optional, :data:`MAX_ADVICE_LEN`).
 
     Raises:
         ValueError: If ``category`` is not one of :data:`CATEGORY_VALUES`.
     """
     if category not in CATEGORY_VALUES:
         raise ValueError(f"Invalid category: {category}")
+
+    period_v = _truncate(period, MAX_PERIOD_LEN)
+    summary_v = _truncate(summary, MAX_SUMMARY_LEN) or ""
+    learned_v = _truncate(learned, MAX_LEARNED_LEN) or ""
+    regret_v = _truncate(regret, MAX_REGRET_LEN)
+    advice_v = _truncate(advice, MAX_ADVICE_LEN)
 
     data = _load()
     post_id = _next_post_id(data["posts"])
@@ -120,7 +217,12 @@ def add_post(
         "line_user_id": line_user_id,
         "category": category,
         "title": title.strip()[:MAX_TITLE_LEN],
-        "body": body.strip()[:MAX_BODY_LEN],
+        "period": period_v,
+        "summary": summary_v,
+        "learned": learned_v,
+        "regret": regret_v,
+        "advice": advice_v,
+        "body": compose_body(period_v, summary_v, learned_v, regret_v, advice_v),
         "area": _normalize_area(area),
         "share_with_parent": bool(share_with_parent),
         "created_at": datetime.now(JST).isoformat(),
