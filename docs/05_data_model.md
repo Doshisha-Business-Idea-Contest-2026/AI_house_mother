@@ -152,12 +152,13 @@ def save_json(relative_path: str, data: Any) -> None:
             "line_user_id": "U1234abcd...",
             "category": "volunteer",
             "title": "下鴨神社の清掃活動に参加",
-            "period": "先週末",
+            "period_raw": "去年の10月",
+            "period": "2025年10月",
             "summary": "下鴨神社の月例清掃に参加した",
             "learned": "地域の方と話すきっかけになった",
             "regret": "朝が早くて起きるのが大変だった",
             "advice": "動きやすい服装で行くのがおすすめ",
-            "body": "【いつ】先週末\n【やったこと】下鴨神社の月例清掃に参加した\n【学び】地域の方と話すきっかけになった\n【残念・注意】朝が早くて起きるのが大変だった\n【次の人へ】動きやすい服装で行くのがおすすめ",
+            "body": "【いつ】2025年10月\n【やったこと】下鴨神社の月例清掃に参加した\n【学び】地域の方と話すきっかけになった\n【残念・注意】朝が早くて起きるのが大変だった\n【次の人へ】動きやすい服装で行くのがおすすめ",
             "area": "下鴨神社",
             "share_with_parent": true,
             "created_at": "2026-07-05T18:30:00+09:00"
@@ -172,8 +173,9 @@ def save_json(relative_path: str, data: Any) -> None:
 | `post_id` | string | `P` + 5 桁連番 |
 | `line_user_id` | string | 投稿者（学生） |
 | `category` | string | `event` \| `volunteer` \| `store` \| `medical` \| `tips` \| `study` \| `money` \| `social` \| `effort` \| `other` |
-| `title` | string | タイトル（最大 40 文字） |
-| `period` | string \| null | いつ・期間（最大 100 文字、スキップ可） |
+| `title` | string | タイトル（最大 40 文字）。**LLM 自動生成**、確認画面でユーザーが編集可（T4.15、`docs/06 §4.5`） |
+| `period_raw` | string \| null | ユーザーの生入力（例「去年の10月」、最大 100 文字、スキップ可）。LLM 正規化の入力かつ意図の担保 |
+| `period` | string \| null | `period_raw` を `created_at` 基準で LLM 正規化した絶対表現（例「2025年10月」）。正規化失敗時は `period_raw` と同値 |
 | `summary` | string | できごとの概要（最大 300 文字、必須） |
 | `learned` | string | 学べたこと・良かったこと（最大 200 文字、必須） |
 | `regret` | string \| null | 残念だったこと・注意点（最大 200 文字、スキップ可） |
@@ -185,7 +187,7 @@ def save_json(relative_path: str, data: Any) -> None:
 
 **`body` の合成と後方互換**:
 
-`period` / `summary` / `learned` / `regret` / `advice` は個別保存に加えて、非空フィールドのみを `【いつ】…／【やったこと】…／【学び】…／【残念・注意】…／【次の人へ】…` 形式で連結した `body` を `src/services/posts.py::compose_body` で生成・保存する（`docs/04_functional_spec.md §4.5`）。月次レポート（`body` 冒頭プレビュー）と SECI context（`list_all_for_context`）は `body` のみを参照するため、構造化しても下流は無改修。T4.14 以前の旧レコード（5 フィールドを持たず `body` のみ）も同じ読み取り経路で扱えるため後方互換が保たれる。
+`period`（正規化値）/ `summary` / `learned` / `regret` / `advice` は個別保存に加えて、非空フィールドのみを `【いつ】…／【やったこと】…／【学び】…／【残念・注意】…／【次の人へ】…` 形式で連結した `body` を `src/services/posts.py::compose_body` で生成・保存する（`docs/04_functional_spec.md §4.5`）。`body` の `【いつ】` には正規化済み `period` を使う（`period` が無ければ `period_raw` にフォールバック）。月次レポート（`body` 冒頭プレビュー）と SECI context（`list_all_for_context`）は `body` のみを参照するため、構造化・LLM 正規化しても下流は無改修。T4.14 以前の旧レコード（5 フィールドや `period_raw` を持たず `body` のみ）も同じ読み取り経路で扱えるため後方互換が保たれる。
 
 **`post_id` の採番方式**:
 
