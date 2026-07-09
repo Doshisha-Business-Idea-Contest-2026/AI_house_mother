@@ -550,6 +550,42 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 **Day 割当**: Day 4。T4.4（デモ通し）の前に実施し、シーン 2 の PR 実演を含めて通す。
 
+### T4.13 Flex Message デザイン刷新（カード構造化・共通スタイル基盤）
+
+**目的**: 全 Flex Message（5 種）のビジュアルを、現状の「色付きヘッダー＋セパレータ区切りの
+フラットな本文」から、`../kcb_linebot/flex_templates.py` 準拠の「背景トーンで塗り分けた
+カードインカード構造＋左アクセントバー＋サイズ階層」へ刷新する。決勝プレゼンの実機デモで
+Flex の見栄えが訴求力に直結するため、情報のグルーピングを視覚的に強化する。
+
+T4.1a（spacing/色/絵文字の軽微な統一、概ね完了済み）とは別の、一段深いビジュアル刷新である。
+
+**成果物**:
+
+- **共通スタイルモジュール新設**: `src/templates/flex/style.py`（仮）。カラートークン
+  （同志社ネイビー `#00579C` 基調、既存 `activity_carousel._CATEGORY_COLORS` と整合）・
+  角丸・パディング・背景トーン・左アクセントバー生成などのヘルパーを提供
+- **5 builder の刷新**: `activity_carousel` / `welcome` / `monthly_report` /
+  `invitation_code` / `profile_view` が共通モジュールを利用し、カードインカード構造へ移行
+- 既存の機能・postback data・alt text・情報鮮度注記（NFR-Truth-4）・PR 開示文（FR-S9）は
+  すべて維持（デザイン変更のみで挙動は不変）
+
+**完了基準**:
+
+- [ ] `src/templates/flex/style.py` が新設され、5 builder が共通トークン／ヘルパーを利用している
+- [ ] 5 種の Flex がカードインカード構造（角丸背景ボックス・アクセントバー・サイズ階層）で表示される
+- [ ] postback data・alt text・鮮度注記・PR 開示文が刷新前と機能的に同一である
+- [ ] iOS / Android 両方（または LINE Flex Simulator）で表示崩れがないことを確認
+- [ ] 既存テスト（`tests/test_activity_carousel.py` 等）が通る／構造変更に追随して更新済み
+
+**参考**: `../kcb_linebot/flex_templates.py` の `create_stop_info_box`（左アクセントバー）、
+`create_single_route_bubble`（`styles` によるヘッダー/ボディ/フッター背景制御）。
+
+**優先度**: P2（デモのインパクトに効くが MVP を止めない。逼迫時は T4.1a の水準で妥協）
+
+**推定**: 3〜4 時間
+
+**Day 割当**: Day 4 以降。T4.4（デモ通し）前に実施できれば実演効果が高い。
+
 ## 7. タスク依存グラフ
 
 ```
@@ -580,6 +616,7 @@ T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ 
 4. **T3.4 月次サマリー** — 静的テンプレート化（"春樹さんの今月：〜" を固定文言）
 5. **T4.1a Flex Message デザイン調整** — テキスト応答に置き換え
 6. **T4.1b Sender switch 実装** — 全応答を単一送信者に戻す（アイコン切替なし）
+7. **T4.13 Flex デザイン刷新** — T4.1a の水準（フラット構造）のまま据え置き
 
 ## 9. 完了状況トラッキング
 
@@ -605,3 +642,4 @@ Day 1
 | 2026-07-06 | T4.11 を新設: LINE Loading Indicator API による中間応答 UX 磨き込み。line_reply.show_loading を追加し、student.py の 3 handler で「考えています…」等のテキスト reply を Loading Indicator に置き換える | kmch4n |
 | 2026-07-06 | Day 4 残タスクの範囲確定: T4.2 リッチメニュー本実装を Day 5+ に持ち越し（Quick Reply モックで暫定運用）、T4.9 Post-hoc 正規表現ハルシネーション検出も Day 5+ に持ち越し、T4.1a に welcome Flex 化を追加、T4.3 を 3 サブスコープ (a 残置除去 / b 語尾統一 / c 権限違い応答一貫性) に分割 | kmch4n |
 | 2026-07-08 | T4.12 企業スポンサードPR 実装（FR-S9、第3の収益源）を新設: sponsored.json seed・マッチング挿入・Flex PR 表示・興味ありトラッキングの成果物と完了基準を定義 | kmch4n |
+| 2026-07-09 | T4.13 を新設: 全 Flex（5 種）を kcb_linebot 準拠のカードインカード構造へ刷新し、共通スタイルモジュール src/templates/flex/style.py を新設するデザイン刷新タスク（T4.1a より一段深いビジュアル改善） | kmch4n |
