@@ -167,6 +167,23 @@
 - 発表者の話: 「情報を投稿してくれた学生には、地域店舗で使えるクーポンが届きます。知識共有 → インセンティブ → 地域消費 → 地域活性化という循環（`00_product_context.md §10.5`）の入口です。これを 3 件ごとに繰り返します。」
 - 注意: デモのクーポンは**架空店舗・見た目のみ**（引き換え・ポイント台帳なし）。実店舗連携は今後の展望である旨を口頭で補足する。
 
+**手動で発火させる場合**（3 件投稿せずに発火を見せたいとき）:
+
+サーバーのターミナルから、対象学生の user_id を指定して次のクーポンバッチを強制配布できる。投稿数に関係なく発火し、打つたびにローテーションで次の 3 種が届く。LINE トーク画面にはクーポンだけが届き、トリガー操作の痕跡は残らない（`scripts/trigger_coupon.py`）。
+
+```bash
+# 登録学生の user_id 一覧を表示
+python scripts/trigger_coupon.py --list
+
+# 配布内容だけ確認（実際には送らない）
+python scripts/trigger_coupon.py <user_id> --dry-run
+
+# 実際に次のバッチを配布
+python scripts/trigger_coupon.py <user_id>
+```
+
+- 内部的には `coupons.force_award_next`（投稿数判定を行わず `last_awarded_milestone + 3` を配布し履歴も更新）を使う。自然発火（`award_if_due`）と `coupon_distributions.json` を共有するため、その後の自然発火とも矛盾しない。
+
 #### シーン 7: 保護者の月次レポート（5:45〜6:00）
 
 **発表者の話**: 「保護者はどう見守るか。」
