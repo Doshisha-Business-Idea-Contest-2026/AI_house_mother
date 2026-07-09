@@ -217,10 +217,10 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T3.0 docs 先行更新 & state ファイル初期化
 
-**目的**: docs-first 原則に従い、Day 3 の仕様（招待コード再発行、月次 Push 併用、経験投稿 6 ステップ、予約語ルーティング、暫定 sender 運用）を実装前に docs へ落とし込む。`monthly_report_state.json` の空スケルトンも用意する。
+**目的**: docs-first 原則に従い、Day 3 の仕様（招待コード再発行、月次 Push 併用、経験投稿 6 ステップ、予約語ルーティング）を実装前に docs へ落とし込む。`monthly_report_state.json` の空スケルトンも用意する。
 
 **成果物**:
-- `docs/04_functional_spec.md` §3.3 / §3.5 / §4.5 / §4.6 / §5.2 / §5.3 / §7 更新
+- `docs/04_functional_spec.md` §3.3 / §4.5 / §4.6 / §5.2 / §5.3 / §7 更新
 - `docs/05_data_model.md` §2 / §4.3 / §4.4 / §4.11（新設） / §7 更新
 - `docs/08_demo_scenario.md` に Pull 主軸のデモ手順、`--month` オーバーライドによる Push 手動再送手順、キャンセル・予約語割り込み確認
 - `docs/09_tasks.md` の本ファイル自身
@@ -260,7 +260,7 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 - `src/handlers/__init__.py` に `parent` import 追加
 - `src/handlers/postback.py` の `menu:link_student` / `link:*` 配線
 - `src/handlers/message.py` の `LINK_COMMANDS` 予約語 + `is_in_link_flow` セッションルート
-- `src/services/line_reply.push_text` で学生側へ連携完了通知（sender 未指定、§3.5 暫定運用）
+- `src/services/line_reply.push_text` で学生側へ連携完了通知
 
 **完了基準**:
 - 保護者役でコード入力 → 連携完了、学生側に push 通知が届く
@@ -346,40 +346,6 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
   - `↺`（U+21BA、Android 一部フォントで細字化）→ `🔄` に置換（`invitation_code.py` と `quick_reply.py::invitation_menu_quick_reply`）
   - `monthly_report.py` の `✨` 見出しを `🌸` に差し替え（category=other との衝突回避）
   - `invitation_code.py:78` の `size: "4xl"` → `"3xl"`（狭幅端末での折返し回避）
-
-**推定**: 2 時間
-
-### T4.1b Sender switch 実装（送信者アイコン・名前の切替）
-
-**目的**: `docs/04_functional_spec.md §3.5` の仕様に基づき、応答のトーンに応じて送信者名とアイコンを切替、機械的応答と人間的応答の区別を UX で明示する。
-
-**依存アセット**:
-- `static/icons/friendly.png` / `system.png` / `notify.png`（Day 2 で placeholder コミット済み。デモ前に正式版に差し替え）
-
-**成果物**:
-- `src/services/line_reply.py`:
-  - `reply_text` / `reply_flex` / `push_text` / `push_flex` に `sender: SenderPreset | None = None` 引数を追加
-  - `SenderPreset = Literal["friendly", "system", "notify"]` を定義
-  - 内部で `linebot.v3.messaging.Sender(name=..., icon_url=...)` を組み立てて Message の `sender` フィールドに設定
-  - 未指定時は `friendly`（デフォルト）
-- `src/main.py` に `StaticFiles(directory="static")` を `/ai_house_mother/static` にマウント
-- `src/config.py` に `PUBLIC_BASE_URL` を追加（`.env` から読む、デフォルトは `https://linebot.kmchan.jp/ai_house_mother`）
-- `.env.example` に `PUBLIC_BASE_URL` を追記
-- 呼び出し側の分類（`docs/04_functional_spec.md §3.5` の表参照）:
-  - `handlers/student.py::handle_life_consultation` の Gemini 応答 push → `friendly`
-  - `handlers/student.py` の緊急定型 → `friendly`
-  - `handlers/student.py::handle_want_to_do` のカルーセル push → `friendly`
-  - `handlers/student.py::handle_activity_detail` の push → `friendly`
-  - `handlers/message.py::handle_text` のキャンセル・placeholder・エラー → `system`
-  - `handlers/postback.py::_handle_menu` の placeholder → `system`
-  - `handlers/student.py` プロフィール入力ステップ → `system`
-  - `handlers/follow.py::handle_follow` のウェルカム → `friendly`
-  - Day 3 の招待コード発行完了・保護者連携完了通知 → `notify`
-
-**完了基準**:
-- LINE 実機で「生活相談」と「キャンセル」の応答が異なる送信者名・アイコンで表示される
-- `curl https://linebot.kmchan.jp/ai_house_mother/static/icons/friendly.png` で 200 が返る（他 2 種も同様）
-- 既存の呼び出し箇所は無変更で動作する（`sender` 未指定は `friendly` にフォールバック）
 
 **推定**: 2 時間
 
@@ -693,7 +659,7 @@ T2.6 ─▶ T3.0 ─▶ T3.1 ─▶ T3.2 ┐
                               ├─▶ T3.4 ─▶ T3.4-b ─▶ T3.5
               T2.5 ─▶ T3.3 ───┘
 
-T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
+T3.5 ─▶ T4.1a ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ T4.5 ─▶ T4.6 ─▶ T4.7 ─▶ T4.8
 ```
 
 ## 8. スコープ縮退
@@ -705,10 +671,9 @@ T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ 
 3. **T3.3 経験投稿** — デモでは事前投入データのみで動かす、投稿 UI モックのみ
 4. **T3.4 月次サマリー** — 静的テンプレート化（"春樹さんの今月：〜" を固定文言）
 5. **T4.1a Flex Message デザイン調整** — テキスト応答に置き換え
-6. **T4.1b Sender switch 実装** — 全応答を単一送信者に戻す（アイコン切替なし）
-7. **T4.13 Flex デザイン刷新** — T4.1a の水準（フラット構造）のまま据え置き
-8. **T4.14 経験投稿の構造化** — 単一 `body` 自由記述に戻す（5 問化を見送る）
-9. **T4.15 経験投稿の LLM アシスト** — 手入力 title・raw period に戻す（LLM 呼び出しを外す）
+6. **T4.13 Flex デザイン刷新** — T4.1a の水準（フラット構造）のまま据え置き
+7. **T4.14 経験投稿の構造化** — 単一 `body` 自由記述に戻す（5 問化を見送る）
+8. **T4.15 経験投稿の LLM アシスト** — 手入力 title・raw period に戻す（LLM 呼び出しを外す）
 
 ## 9. 完了状況トラッキング
 
@@ -737,5 +702,6 @@ Day 1
 | 2026-07-09 | T4.13 を新設: 全 Flex（5 種）を kcb_linebot 準拠のカードインカード構造へ刷新し、共通スタイルモジュール src/templates/flex/style.py を新設するデザイン刷新タスク（T4.1a より一段深いビジュアル改善） | kmch4n |
 | 2026-07-09 | T4.14 を新設: 経験投稿の丸投げ body を 5 問（期間/概要/学び/残念/アドバイス）に構造化。個別保存＋合成 body で下流無改修・後方互換を維持し、蓄積情報の質と SECI context 精度を底上げ（docs/04 §4.5・docs/05 §4.3・docs/06 §4.2 を更新） | kmch4n |
 | 2026-07-09 | T4.15 を新設: 経験投稿に LLM アシスト（title 自動生成 + period 時間正規化）を追加。confirm 直前の 1 回統合呼び出し、raw+正規化 period の両保存、失敗時フォールバックでフロー継続（docs/04 §4.5・docs/05 §4.3・docs/06 §4.5 を更新） | kmch4n |
+| 2026-07-09 | T4.1b Sender switch 実装タスクを撤去: LINE 公式アカウント名・アイコン一本化へ切替のため T4.1b 節を削除、依存グラフを `T4.1a ─▶ T4.2` に短縮、スコープ縮退リストから対応行を除去（Issue #34 の docs-first） | kmch4n |
 | 2026-07-09 | T4.13 実施方針を確定: カード密度=バランス（セクション見出しに左アクセントバー＋本文を角丸カードで軽くグルーピング）、配色=同志社ネイビー基調に調整（sponsored ゴールドは維持）。docs/07 §4.6 に style.py 方針を追記 | kmch4n |
 | 2026-07-09 | T4.13 実施方針を白基調エアリーへ改定: 初回のグレー角丸カードは変化が弱く、白ヘッダー＋navy アクセントバー／余白＋hairline へ作り替え。グレー塗りカード廃止、カテゴリ色・sponsored ゴールドはヘッダー左アクセントバーで表現（docs/07 §4.6・docs/04 §8 を更新） | kmch4n |
