@@ -97,7 +97,8 @@ class TestAddPost(_TempDataDirMixin):
             "learned": "地域の人と話せた",
             "area": "下鴨神社",
             "share_with_parent": True,
-            "period": "先週末",
+            "period": "2025年10月",
+            "period_raw": "去年の10月",
             "regret": "朝が早い",
             "advice": "動きやすい服で",
         }
@@ -106,20 +107,35 @@ class TestAddPost(_TempDataDirMixin):
 
     def test_record_has_structured_fields_and_composed_body(self) -> None:
         record = self._add()
-        assert record["period"] == "先週末"
+        assert record["period"] == "2025年10月"
+        assert record["period_raw"] == "去年の10月"
         assert record["summary"] == "月例清掃に参加"
         assert record["learned"] == "地域の人と話せた"
         assert record["regret"] == "朝が早い"
         assert record["advice"] == "動きやすい服で"
+        # The body uses the normalized period, not the raw words.
         assert record["body"] == posts.compose_body(
-            "先週末", "月例清掃に参加", "地域の人と話せた", "朝が早い", "動きやすい服で"
+            "2025年10月",
+            "月例清掃に参加",
+            "地域の人と話せた",
+            "朝が早い",
+            "動きやすい服で",
         )
         assert record["post_id"] == "P00001"
         assert record["share_with_parent"] is True
 
-    def test_skipped_optionals_stored_as_none(self) -> None:
-        record = self._add(period=None, regret=None, advice=None)
+    def test_body_period_falls_back_to_raw_when_not_normalized(self) -> None:
+        # When normalization was skipped/failed, period is None but the
+        # raw words are kept and used for the body's 【いつ】 (docs/05 §4.3).
+        record = self._add(period=None, period_raw="去年の10月")
         assert record["period"] is None
+        assert record["period_raw"] == "去年の10月"
+        assert record["body"].startswith("【いつ】去年の10月\n")
+
+    def test_skipped_optionals_stored_as_none(self) -> None:
+        record = self._add(period=None, period_raw=None, regret=None, advice=None)
+        assert record["period"] is None
+        assert record["period_raw"] is None
         assert record["regret"] is None
         assert record["advice"] is None
         assert (
@@ -149,6 +165,10 @@ class TestAddPost(_TempDataDirMixin):
         projected = posts.list_all_for_context()
         assert len(projected) == 1
         assert projected[0]["body"] == posts.compose_body(
-            "先週末", "月例清掃に参加", "地域の人と話せた", "朝が早い", "動きやすい服で"
+            "2025年10月",
+            "月例清掃に参加",
+            "地域の人と話せた",
+            "朝が早い",
+            "動きやすい服で",
         )
         assert "line_user_id" not in projected[0]

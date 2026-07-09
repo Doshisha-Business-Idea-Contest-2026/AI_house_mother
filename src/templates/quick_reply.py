@@ -380,7 +380,11 @@ def post_share_parent_quick_reply() -> QuickReply:
 
 
 def post_confirm_quick_reply() -> QuickReply:
-    """Quick Reply used at the final review step of the post flow."""
+    """Quick Reply used at the final review step of the post flow.
+
+    Includes ``✏️ タイトルを変更`` so the student can override the
+    AI-generated title before posting (T4.15, docs/04 §4.5).
+    """
     return QuickReply(
         items=[
             QuickReplyItem(
@@ -388,6 +392,13 @@ def post_confirm_quick_reply() -> QuickReply:
                     label="✅ 投稿する",
                     data="post:confirm:yes",
                     display_text="✅ 投稿する",
+                )
+            ),
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="✏️ タイトルを変更",
+                    data="post:title:edit",
+                    display_text="✏️ タイトルを変更",
                 )
             ),
             QuickReplyItem(

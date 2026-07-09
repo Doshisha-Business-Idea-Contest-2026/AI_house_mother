@@ -627,6 +627,42 @@ T4.1a（spacing/色/絵文字の軽微な統一、概ね完了済み）とは別
 
 **Day 割当**: Day 4 以降。
 
+### T4.15 経験投稿への LLM アシスト（title 自動生成 + period 時間正規化）
+
+**目的**: T4.14 で構造化した経験投稿を LLM で仕上げる。(1) title のユーザー手入力を廃止し、内容から
+自動生成、(2) 相対的な period 表現（「去年の10月」）を投稿時点（`created_at`）基準で絶対表現へ正規化。
+入力品質のばらつきと相対時間の意味喪失を解消する。仕様は `docs/06_ai_spec.md §4.5`・
+`docs/04 §4.5`・`docs/05 §4.3` に定義済み。
+
+**方針**: 固定フローは維持し、全項目収集後・confirm 直前に **1 回の Gemini 統合呼び出し**で title 生成 +
+period 正規化を実施。LLM 失敗時は必ずフォールバック（title←summary 冒頭、period←raw）しフローを
+止めない。動的設問は今回スコープ外。
+
+**成果物**:
+
+- `src/services/prompts.py`: `build_post_finalize_prompt(...)` を新設
+- `src/services/gemini.py`: `finalize_post(...) -> {"title", "period"}` を新設（JSON モード・
+  `GEMINI_MOCK_MODE`/失敗時フォールバック）
+- `src/services/posts.py`: `add_post` に `period_raw` を追加、`period` は正規化値を格納
+- `src/handlers/student.py`: `post.title` 手入力を削除、`post.title_edit` を追加、share 選択直後に
+  `show_loading` → `finalize_post` → 確認カードを push、確認カードに `✏️ タイトルを変更` を追加
+- `src/templates/quick_reply.py`: `post_confirm_quick_reply()` に「タイトルを変更」を追加
+- `tests/test_posts.py` 拡張・`tests/test_gemini_finalize.py`（mock フォールバック検証）新設
+
+**完了基準**:
+
+- [ ] title 手入力ステップが無く、確認カードに AI 生成 title が出る（`✏️ タイトルを変更`で編集可）
+- [ ] 相対 period が `created_at` 基準で正規化され、`period_raw`（生）と `period`（正規化）が両方保存される
+- [ ] LLM 失敗・`GEMINI_MOCK_MODE` 時は title←summary 冒頭・period←raw にフォールバックしフローが完走する
+- [ ] `period_raw` を持たない旧レコードが月次・context で従来どおり読める（後方互換）
+- [ ] `black --check` / `ruff check` / `mypy` / `pytest` が通る
+
+**優先度**: P2（LLM 活用のショーケース。デモ映えするが MVP を止めない）
+
+**推定**: 3〜4 時間
+
+**Day 割当**: Day 4 以降。
+
 ## 7. タスク依存グラフ
 
 ```
@@ -659,6 +695,7 @@ T3.5 ─▶ T4.1a ─▶ T4.1b ─▶ T4.2 (opt) ─▶ T4.3 ─▶ T4.4 ─▶ 
 6. **T4.1b Sender switch 実装** — 全応答を単一送信者に戻す（アイコン切替なし）
 7. **T4.13 Flex デザイン刷新** — T4.1a の水準（フラット構造）のまま据え置き
 8. **T4.14 経験投稿の構造化** — 単一 `body` 自由記述に戻す（5 問化を見送る）
+9. **T4.15 経験投稿の LLM アシスト** — 手入力 title・raw period に戻す（LLM 呼び出しを外す）
 
 ## 9. 完了状況トラッキング
 
@@ -686,3 +723,4 @@ Day 1
 | 2026-07-08 | T4.12 企業スポンサードPR 実装（FR-S9、第3の収益源）を新設: sponsored.json seed・マッチング挿入・Flex PR 表示・興味ありトラッキングの成果物と完了基準を定義 | kmch4n |
 | 2026-07-09 | T4.13 を新設: 全 Flex（5 種）を kcb_linebot 準拠のカードインカード構造へ刷新し、共通スタイルモジュール src/templates/flex/style.py を新設するデザイン刷新タスク（T4.1a より一段深いビジュアル改善） | kmch4n |
 | 2026-07-09 | T4.14 を新設: 経験投稿の丸投げ body を 5 問（期間/概要/学び/残念/アドバイス）に構造化。個別保存＋合成 body で下流無改修・後方互換を維持し、蓄積情報の質と SECI context 精度を底上げ（docs/04 §4.5・docs/05 §4.3・docs/06 §4.2 を更新） | kmch4n |
+| 2026-07-09 | T4.15 を新設: 経験投稿に LLM アシスト（title 自動生成 + period 時間正規化）を追加。confirm 直前の 1 回統合呼び出し、raw+正規化 period の両保存、失敗時フォールバックでフロー継続（docs/04 §4.5・docs/05 §4.3・docs/06 §4.5 を更新） | kmch4n |
