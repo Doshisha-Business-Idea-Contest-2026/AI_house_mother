@@ -568,6 +568,21 @@ seed の store / area レコードを回答に含める場合は、Bot 応答に
 
 FR-S6 の `share_with_parent: true` で投稿されたレコードのうち、当月分を月次サマリー生成の入力として使う。
 
+### 4.8 FR-S10 / US-S06: クーポン配布（デモ）
+
+経験投稿（FR-S6）が一定数たまるごとに、地域店舗クーポンを Flex Message で配布する。「知識共有 → インセンティブ獲得 → 地域消費 → 地域活性化」の循環（`00_product_context.md §10.5`）を、決勝プレゼンで実際に動く画面として見せるためのデモ機能。**引き換え・消込・ポイント台帳は持たず、見た目の配布のみ**を行う（本物のクーポン機能は `02_mvp_scope.md §4.1` で除外のまま）。
+
+- **トリガー**: 経験投稿の確定処理（`src/handlers/student.py::_finalize_post`）で投稿を保存した**後**に判定する。母数はその学生の**全経験投稿数**（`share_with_parent` の ON/OFF を問わない。デモで確実に発火させるため）。
+- **配布条件（決定論的）**: `N = posts.count_all(user_id)`（新設）とし、節目 `milestone = (N // 3) * 3` を求める。`milestone >= 3` かつ `milestone > last_awarded_milestone`（前回配布済みの節目）のときに 3 種を配布する。同一節目での二重配布は `last_awarded_milestone` の単調増加チェックで防止する。
+- **配布内容のローテーション**: `data/seed/coupons.json` の `active: true` クーポンから、節目ごとに異なる 3 種を選ぶ。バッチ番号 `batch = (milestone // 3) - 1`（0 始まり）とし、`active_coupons[(batch * 3 + i) % len(active_coupons)]`（i=0,1,2）で循環スライスする。seed 件数が 3 の倍数でなくても常に 3 件取れ、使い切ったら先頭へ戻る。
+- **表示枠**: 3 種を**クーポン専用カルーセル**（最大 3 バブル）で配布する。やりたいこと相談の活動カルーセルとは別テンプレート。
+- **視覚表示**: 各バブルに店舗名・クーポン名・割引内容・有効期限（`valid_until`）を表示する。店舗は架空のため実在情報の鮮度注記は付けない（`05_data_model.md §4.15` の設計判断参照）。掲載テキストは seed の値をそのまま表示する。
+- **ボタン**: 「お店で使う」（URI アクション → seed の `store_url`。架空 URL）。消込・状態変化を伴う postback は持たない。
+- **配信方法**: 投稿完了応答（reply）の後に、`push_flex` でクーポンカルーセルを追加配信する（カルーセルは reply でなく push を使う既存慣行に合わせる。`src/handlers/student.py` の活動カルーセル送信と同様）。
+- **トラッキング**: 配布実績を `data/coupon_distributions.json` に記録する（`05_data_model.md §4.16`）。学生ごとに `last_awarded_milestone` と配布履歴を持ち、重複防止と発表での配布回数提示に用いる。トップレベルキーは生の `line_user_id`（`usage_stats.json` 等と同一規約）。
+- **実装場所**: 配布ロジックは `src/services/coupons.py`（新規）、seed ロードは `src/services/seed.py`、Flex は `src/templates/flex/coupon_carousel.py`（新規）、結線は `src/handlers/student.py::_finalize_post`。
+- **状態遷移**: 新しい会話ステートは導入しない（投稿確定の副作用として push するのみ）。URI ボタンは外部遷移のため postback ルーターの変更も不要。
+
 ## 5. 保護者機能
 
 ### 5.1 FR-P1 / US-P01: 保護者役割選択
@@ -786,6 +801,7 @@ MVP では学生プロフィールに `display_name` が無いため、`link.ver
   - `monthly_report.py` — 月次サマリー
   - `invitation_code.py` — 招待コード表示
   - `profile_view.py` — プロフィール閲覧（Day 4 追加）
+  - `coupon_carousel.py` — クーポン配布（3 バブル、FR-S10。Day 4 追加）
 - テンプレートは build 関数として実装（既存 `kcb_linebot/flex_templates.py` と同様のパターン）
 - **共通スタイルモジュール `templates/flex/style.py` 経由で白基調・アクセントバー基調に統一**（T4.13）。
   白ヘッダー＋navy 細アクセントバー、本文は余白＋hairline のエアリー意匠。カラートークン・アクセント
@@ -819,3 +835,4 @@ MVP では学生プロフィールに `display_name` が無いため、`link.ver
 | 2026-07-08 | §4.3 に「スポンサーPR枠の挿入（FR-S9）」を新設: 協賛イベントを決定論的にマッチング挿入、`reference_type: "sponsored"` のゴールド系＋「🏢 PR（協賛）」明示表示、URI「詳細・応募はこちら」＋「興味あり」計測、`sponsored_engagement.json` トラッキングを規定（企業スポンサードPR の docs-first） | kmch4n |
 | 2026-07-09 | §5.3 FR-P3 を拡張: 頑張ったこと件数に先月比・全期間通算・カテゴリ絵文字、当月の利用回数（生活・活動相談 / 記録・更新）、AI 寮母の月次総括コメントを追加。少回数フォールバックと AI 総括フォールバックのルール、非対称ルールの再定義（0 件でも利用回数があれば Flex 送信）、連携時一括同意の透明性文言を新設 | kmch4n |
 | 2026-07-09 | Sender switch 機能を撤去し LINE 公式アカウント名・アイコン一本化に統一: §3.5「送信者アイコン・名前の切替」節を削除、§3.4-b テーブルの Sender 列と §4.2 の sender 言及・§4.6 / §5.2 / §5.3 の Sender 未指定運用注記を削除、旧 §3.6 Loading indicator を §3.5 へ繰り上げ（Issue #34 の docs-first） | kmch4n |
+| 2026-07-09 | §4.8「FR-S10 クーポン配布（デモ）」を新設: 全経験投稿 3 件ごとに架空クーポン 3 種を専用カルーセルで push 配布、節目ごとローテーション、`store_url` URI ボタン、`coupon_distributions.json` トラッキングと `last_awarded_milestone` 重複防止を規定。§8 テンプレート方針に `coupon_carousel.py` を追記（クーポン配布の docs-first） | kmch4n |
