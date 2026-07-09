@@ -267,6 +267,7 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - `line_user_id`、投稿者のプロフィール（大学名・学部・学年・興味など）、`post_id` は一切渡さない。
 - `share_with_parent` フラグは **保護者への月次サマリー用**であり、他学生への共有可否とは独立。学生投稿は全件が生活相談 context の対象となる（`share_with_parent=false` の投稿も含む）。
 - 投稿者本人を後の学生からリバース識別できないよう、上記フィールド以外の紐付け情報は伝播させない。
+- T4.14 で経験投稿は 5 問（`period` / `summary` / `learned` / `regret` / `advice`）に構造化されたが、Gemini に渡す本文はこれらを連結した合成 `body` に集約する。構造化フィールドを個別に渡すことはせず、上記アローリスト（5 フィールド）は**変更しない**（`docs/05_data_model.md §4.3` / §8）。構造化により `body` 内の情報粒度が揃うため、匿名化契約を保ったまま context 品質だけが向上する。
 
 **パラメータ調整**:
 - `temperature`: 0.5（決定性重視）
