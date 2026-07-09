@@ -83,10 +83,13 @@ def build_welcome_bubble(prefix: str | None = None) -> dict:
             "color": style.TEXT_MAIN,
         }
     )
-    # Group the three feature highlights inside a tone card so they read as a
-    # single "what you can do" block.
+    # Group the three feature highlights in a tight, fill-less block, set off
+    # from the lead/guidance by body whitespace and a hairline.
     feature_rows = [_feature_row(emoji, text) for emoji, text in _FEATURE_LINES]
-    body_contents.append(style.card(feature_rows))
+    body_contents.append(
+        {"type": "box", "layout": "vertical", "spacing": "sm", "contents": feature_rows}
+    )
+    body_contents.append(style.hairline())
     body_contents.append(
         {
             "type": "text",
@@ -97,19 +100,7 @@ def build_welcome_bubble(prefix: str | None = None) -> dict:
         }
     )
 
-    header = style.header_box(
-        HEADER_COLOR,
-        [
-            {
-                "type": "text",
-                "text": "\U0001f3e0 AI寮母へようこそ",
-                "color": style.WHITE,
-                "size": "xl",
-                "weight": "bold",
-                "wrap": True,
-            }
-        ],
-    )
+    header = style.white_header("\U0001f3e0 AI寮母へようこそ")
     return style.bubble(header=header, body=body_contents)
 
 

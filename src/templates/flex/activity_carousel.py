@@ -88,38 +88,24 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
     when = activity.get("when") or ""
     why = activity.get("why_recommend") or ""
 
+    header = style.white_header(title, subtitle=f"🎯 提案 {index}", accent=color)
+
+    body_contents: list[dict[str, Any]] = []
+
     # NFR-Truth-1 / docs/04_functional_spec.md §4.3: distinguish AI-invented
     # suggestions from seed-backed ones with a small caveat line.
-    header_contents: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": f"🎯 提案 {index}",
-            "color": style.WHITE,
-            "size": "sm",
-        },
-    ]
     if reference_type == "generated":
-        header_contents.append(
+        body_contents.append(
             {
                 "type": "text",
                 "text": "🧭 AI 提案（要確認）",
-                "color": style.WHITE,
-                "size": "sm",
+                "size": "xs",
+                "color": style.TEXT_WEAK,
                 "wrap": True,
             }
         )
-    header_contents.append(
-        {
-            "type": "text",
-            "text": title,
-            "color": style.WHITE,
-            "size": "xl",
-            "weight": "bold",
-            "wrap": True,
-        }
-    )
 
-    body_contents: list[dict[str, Any]] = [
+    body_contents.append(
         {
             "type": "text",
             "text": summary,
@@ -127,10 +113,11 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
             "size": "sm",
             "color": style.TEXT_MAIN,
         }
-    ]
+    )
 
-    # Group the location / when / why details inside a single tone card so
-    # the proposal reads as a structured block rather than flat lines.
+    # Group the location / when / why details in a tight, fill-less block so
+    # they read together while the body whitespace separates them from the
+    # summary (airy white style).
     detail_lines: list[dict[str, Any]] = []
     if location:
         detail_lines.append(
@@ -153,8 +140,6 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
             }
         )
     if why:
-        if detail_lines:
-            detail_lines.append(style.separator())
         detail_lines.append(
             {
                 "type": "text",
@@ -165,9 +150,17 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
             }
         )
     if detail_lines:
-        body_contents.append(style.card(detail_lines))
+        body_contents.append(
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": detail_lines,
+            }
+        )
 
     if reference_type in _FRESHNESS_NOTE_TYPES:
+        body_contents.append(style.hairline())
         body_contents.append(
             {
                 "type": "text",
@@ -204,11 +197,7 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
         },
     ]
 
-    return style.bubble(
-        header=style.header_box(color, header_contents),
-        body=body_contents,
-        footer=footer_contents,
-    )
+    return style.bubble(header=header, body=body_contents, footer=footer_contents)
 
 
 def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
@@ -228,35 +217,10 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
     event_date = sponsored.get("event_date") or ""
     deadline = sponsored.get("deadline") or ""
 
-    header_contents: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": _SPONSORED_BADGE_TEXT,
-            "color": style.WHITE,
-            "size": "sm",
-            "weight": "bold",
-        },
-    ]
-    if company:
-        header_contents.append(
-            {
-                "type": "text",
-                "text": company,
-                "color": style.WHITE,
-                "size": "xs",
-                "wrap": True,
-            }
-        )
-    header_contents.append(
-        {
-            "type": "text",
-            "text": title,
-            "color": style.WHITE,
-            "size": "xl",
-            "weight": "bold",
-            "wrap": True,
-        }
-    )
+    # The gold PR distinction (FR-S9) now lives in the header accent bar; the
+    # badge and company name sit as muted subtitle lines above the title.
+    subtitle = [_SPONSORED_BADGE_TEXT, company] if company else [_SPONSORED_BADGE_TEXT]
+    header = style.white_header(title, subtitle=subtitle, accent=color)
 
     body_contents: list[dict[str, Any]] = [
         {
@@ -290,10 +254,18 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
             }
         )
     if info_lines:
-        body_contents.append(style.card(info_lines))
+        body_contents.append(
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": info_lines,
+            }
+        )
 
     # Disclosure + freshness caveat live at the body tail (FR-S9): the
     # disclosure stays legible while the generic freshness note is faint.
+    body_contents.append(style.hairline())
     body_contents.append(
         {
             "type": "text",
@@ -342,8 +314,4 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
         }
     )
 
-    return style.bubble(
-        header=style.header_box(color, header_contents),
-        body=body_contents,
-        footer=footer_contents,
-    )
+    return style.bubble(header=header, body=body_contents, footer=footer_contents)

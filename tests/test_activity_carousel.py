@@ -103,9 +103,35 @@ def _make_sponsored() -> dict[str, object]:
 
 
 def _header_texts(bubble: dict[str, object]) -> list[str]:
+    # The white header nests the title inside a heading row, so scan
+    # recursively (T4.13 white/airy redesign).
+    return _walk_texts(bubble["header"])  # type: ignore[index]
+
+
+def _header_accent_color(bubble: dict[str, object]) -> str | None:
+    """Return the colour of the header's left accent bar, if any."""
     header = bubble["header"]  # type: ignore[index]
-    contents = header["contents"]  # type: ignore[index]
-    return [c["text"] for c in contents if c.get("type") == "text"]
+
+    def find(node: object) -> str | None:
+        if isinstance(node, dict):
+            if (
+                node.get("type") == "box"
+                and node.get("width")
+                and node.get("contents") == []
+            ):
+                return node.get("backgroundColor")
+            for value in node.values():
+                got = find(value)
+                if got is not None:
+                    return got
+        elif isinstance(node, list):
+            for item in node:
+                got = find(item)
+                if got is not None:
+                    return got
+        return None
+
+    return find(header)
 
 
 def _footer_actions(bubble: dict[str, object]) -> list[dict[str, object]]:
@@ -141,11 +167,13 @@ class TestSponsoredBubble:
         actions = _footer_actions(bubble)
         assert all(a.get("type") != "uri" for a in actions)
 
-    def test_uses_gold_header_color(self) -> None:
+    def test_uses_gold_accent_bar(self) -> None:
+        # White/airy redesign (T4.13): the gold PR distinction now lives in
+        # the header accent bar rather than a filled header background.
         bubble = activity_carousel._build_sponsored_bubble(_make_sponsored())
-        header = bubble["header"]  # type: ignore[index]
         assert (
-            header["backgroundColor"] == activity_carousel._CATEGORY_COLORS["sponsored"]
+            _header_accent_color(bubble)
+            == activity_carousel._CATEGORY_COLORS["sponsored"]
         )
 
 

@@ -44,43 +44,25 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
     expiry = _format_expiry(expires_at_iso)
     share_line = f"AI寮母を友だち追加して、このコードを入力してね: [{code}]"
 
-    header = style.header_box(
-        HEADER_COLOR,
-        [
-            {
-                "type": "text",
-                "text": "🔑 保護者連携コード",
-                "color": style.WHITE,
-                "size": "sm",
-            },
-            {
-                "type": "text",
-                "text": "保護者に共有してね",
-                "color": style.WHITE,
-                "size": "xl",
-                "weight": "bold",
-                "wrap": True,
-            },
-        ],
-    )
+    header = style.white_header("保護者に共有してね", subtitle="🔑 保護者連携コード")
 
     body_contents: list[dict[str, Any]] = [
-        # The code itself sits in a highlighted tone card for emphasis.
-        style.card(
-            [
-                {
-                    "type": "text",
-                    "text": code,
-                    "color": CODE_TEXT_COLOR,
-                    "size": "3xl",
-                    "weight": "bold",
-                    "align": "center",
-                }
-            ],
-            bg=style.TONE_BG,
-        ),
-        style.card(
-            [
+        # The code stands alone, large and centred in navy — whitespace does
+        # the emphasis instead of a filled box (airy white style).
+        {
+            "type": "text",
+            "text": code,
+            "color": CODE_TEXT_COLOR,
+            "size": "3xl",
+            "weight": "bold",
+            "align": "center",
+        },
+        style.hairline(),
+        {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "xs",
+            "contents": [
                 {
                     "type": "text",
                     "text": f"⏰ 有効期限: {expiry}",
@@ -94,10 +76,14 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "size": "xs",
                     "color": style.TEXT_WEAK,
                 },
-            ]
-        ),
-        style.card(
-            [
+            ],
+        },
+        style.hairline(),
+        {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "xs",
+            "contents": [
                 {
                     "type": "text",
                     "text": "共有用メッセージ:",
@@ -111,8 +97,9 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "wrap": True,
                     "color": style.TEXT_MAIN,
                 },
-            ]
-        ),
+            ],
+        },
+        style.hairline(),
         style.section_heading("🔒 保護者に共有される内容", size="sm"),
         {
             "type": "text",

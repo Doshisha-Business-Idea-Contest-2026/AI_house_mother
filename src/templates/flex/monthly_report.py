@@ -89,12 +89,19 @@ def _posts_section(report: dict[str, Any]) -> list[dict[str, Any]]:
         {"type": "text", "text": subtitle, "size": "xs", "color": style.TEXT_WEAK},
     ]
     if posts:
-        card_contents: list[dict[str, Any]] = []
+        post_rows: list[dict[str, Any]] = []
         for index, post in enumerate(posts):
-            card_contents.extend(_post_row(post))
+            post_rows.extend(_post_row(post))
             if index < len(posts) - 1:
-                card_contents.append(style.separator())
-        block.append(style.card(card_contents))
+                post_rows.append(style.hairline())
+        block.append(
+            {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": post_rows,
+            }
+        )
     return block
 
 
@@ -159,7 +166,10 @@ def _usage_section(report: dict[str, Any]) -> list[dict[str, Any]]:
                 "color": style.TEXT_MAIN,
             }
         )
-    return [style.section_heading("🏠 今月の利用"), style.card(lines)]
+    return [
+        style.section_heading("🏠 今月の利用"),
+        {"type": "box", "layout": "vertical", "spacing": "sm", "contents": lines},
+    ]
 
 
 def _ai_summary_section(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -168,17 +178,13 @@ def _ai_summary_section(report: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     return [
         style.section_heading("💬 AI寮母より"),
-        style.card(
-            [
-                {
-                    "type": "text",
-                    "text": summary,
-                    "size": "sm",
-                    "wrap": True,
-                    "color": style.TEXT_SUB,
-                }
-            ]
-        ),
+        {
+            "type": "text",
+            "text": summary,
+            "size": "sm",
+            "wrap": True,
+            "color": style.TEXT_SUB,
+        },
     ]
 
 
@@ -197,30 +203,13 @@ def build_monthly_report_bubble(report: dict[str, Any]) -> dict[str, Any]:
 
     body_contents: list[dict[str, Any]] = []
     body_contents.extend(_posts_section(report))
-    body_contents.append(style.separator())
+    body_contents.append(style.hairline())
     body_contents.extend(_usage_section(report))
 
     ai_contents = _ai_summary_section(report)
     if ai_contents:
-        body_contents.append(style.separator())
+        body_contents.append(style.hairline())
         body_contents.extend(ai_contents)
 
-    header = style.header_box(
-        HEADER_COLOR,
-        [
-            {
-                "type": "text",
-                "text": f"📊 {student_display}の今月",
-                "color": style.WHITE,
-                "size": "sm",
-            },
-            {
-                "type": "text",
-                "text": year_month,
-                "color": style.WHITE,
-                "size": "xl",
-                "weight": "bold",
-            },
-        ],
-    )
+    header = style.white_header(year_month, subtitle=f"📊 {student_display}の今月")
     return style.bubble(header=header, body=body_contents)

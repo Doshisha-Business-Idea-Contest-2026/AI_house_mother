@@ -71,13 +71,17 @@ def build_profile_view_bubble(profile: dict[str, Any]) -> dict[str, Any]:
         ("🔥 最近頑張っていること", recent_effort),
         ("🎯 やってみたいこと", want_to_do),
     ]
-    card_contents: list[dict[str, Any]] = []
+    field_rows: list[dict[str, Any]] = []
     for index, (label, value) in enumerate(fields):
-        card_contents.append(_field_row(label, value))
+        field_rows.append(_field_row(label, value))
         if index < len(fields) - 1:
-            card_contents.append(style.separator())
+            field_rows.append(style.hairline())
 
-    body_contents: list[dict[str, Any]] = [style.card(card_contents)]
+    # Fields sit directly on the white body, separated by hairlines and
+    # whitespace instead of a filled card (airy white style).
+    body_contents: list[dict[str, Any]] = [
+        {"type": "box", "layout": "vertical", "spacing": "md", "contents": field_rows}
+    ]
 
     if updated_at:
         body_contents.append(
@@ -89,23 +93,7 @@ def build_profile_view_bubble(profile: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    header = style.header_box(
-        HEADER_COLOR,
-        [
-            {
-                "type": "text",
-                "text": "👤 あなたのプロフィール",
-                "color": style.WHITE,
-                "size": "sm",
-            },
-            {
-                "type": "text",
-                "text": "登録済みの内容はこちらです",
-                "color": style.WHITE,
-                "size": "xl",
-                "weight": "bold",
-                "wrap": True,
-            },
-        ],
+    header = style.white_header(
+        "👤 あなたのプロフィール", subtitle="登録済みの内容はこちらです"
     )
     return style.bubble(header=header, body=body_contents)

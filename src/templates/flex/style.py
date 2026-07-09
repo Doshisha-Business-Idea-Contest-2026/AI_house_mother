@@ -1,16 +1,14 @@
 """Shared Flex design tokens and helpers (T4.13).
 
 This module is the single source of truth for the Flex look-and-feel used
-by every builder in :mod:`src.templates.flex`. It centralises the colour
-palette (Doshisha navy ``#00579C`` base, plus the per-category header
-colours), corner radii, paddings, and a small set of helpers that assemble
-the "card-in-card" structure — a coloured header, section headings with a
-left accent bar, and rounded tone-tinted cards that group body content.
+by every builder in :mod:`src.templates.flex`. The design language is a
+white, airy style: a **white header** with the title in navy, a thin navy
+accent bar to its left, and a navy hairline beneath it; the body groups
+information with whitespace and hairline dividers rather than filled cards.
+Brand and category colours live in the header accent bar (adapted from the
+left accent bar of ``kcb_linebot/flex_templates.py`` ``create_stop_info_box``).
 
-The design language is adapted from ``kcb_linebot/flex_templates.py``
-(``create_stop_info_box`` for the left accent bar and
-``create_single_route_bubble`` for the section background control). See
-``docs/07_architecture.md §4.6`` and ``docs/04_functional_spec.md §8``.
+See ``docs/07_architecture.md §4.6`` and ``docs/04_functional_spec.md §8``.
 
 Builders must not hard-code colours, separators, or bubble skeletons of
 their own; they compose the helpers below so the five Flex messages stay
@@ -25,14 +23,10 @@ from typing import Any
 # Colour tokens
 # ---------------------------------------------------------------------------
 
-#: Doshisha navy — the base brand colour and default header/accent colour.
+#: Doshisha navy — the brand colour used for titles, accent bars and the
+#: hairline beneath the header.
 NAVY = "#00579C"
 WHITE = "#ffffff"
-
-#: Card-in-card fills: a light card ground and a slightly cooler tone used
-#: to emphasise a single value block (e.g. the invitation code).
-CARD_BG = "#f5f5f5"
-TONE_BG = "#eef2f7"
 
 #: Hairline separator colour reused across every builder.
 SEPARATOR = "#e0e0e0"
@@ -45,24 +39,22 @@ TEXT_WEAK = "#999999"
 TEXT_FAINT = "#aaaaaa"
 
 # ---------------------------------------------------------------------------
-# Radius / padding tokens
+# Layout tokens
 # ---------------------------------------------------------------------------
 
-RADIUS_CARD = "8px"
+ACCENT_WIDTH = "4px"
 RADIUS_BAR = "2px"
-RADIUS_TONE = "4px"
-
 PAD_HEADER = "16px"
-PAD_CARD = "12px"
+BODY_SPACING = "lg"
 
 # ---------------------------------------------------------------------------
 # Category colours (navy-harmonised, T4.13)
 # ---------------------------------------------------------------------------
 
-#: Header colour per ``reference_type`` for activity proposals. Re-tuned to a
-#: muted, navy-leaning palette for a cohesive look (T4.13). ``generated``
-#: stays navy, ``senior_post`` stays slate, and ``sponsored`` keeps its gold
-#: so the PR slot remains visually distinct per FR-S9.
+#: Accent-bar colour per ``reference_type`` for activity proposals. Muted,
+#: navy-leaning tones for a cohesive look. ``generated`` stays navy,
+#: ``senior_post`` stays slate, and ``sponsored`` keeps its gold so the PR
+#: slot remains visually distinct per FR-S9.
 CATEGORY_COLORS: dict[str, str] = {
     "event": "#3A6EA5",  # muted steel blue
     "volunteer": "#4E8C6A",  # calm green
@@ -78,7 +70,7 @@ CATEGORY_COLORS: dict[str, str] = {
 
 
 def get_category_color(reference_type: str) -> str:
-    """Return the header colour for ``reference_type``.
+    """Return the accent colour for ``reference_type``.
 
     Args:
         reference_type: The proposal's reference type (e.g. ``event``,
@@ -95,72 +87,62 @@ def get_category_color(reference_type: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def separator() -> dict[str, Any]:
-    """Return a hairline separator using the shared :data:`SEPARATOR` colour."""
+def hairline() -> dict[str, Any]:
+    """Return a thin grey separator using the shared :data:`SEPARATOR` colour."""
     return {"type": "separator", "color": SEPARATOR}
 
 
-def accent_bar(color: str) -> dict[str, Any]:
+def accent_bar(color: str, *, width: str = ACCENT_WIDTH) -> dict[str, Any]:
     """Return a thin vertical accent bar box.
 
-    An empty ``5px``-wide box that stretches to its row height when placed in
-    a horizontal layout, mimicking ``kcb_linebot``'s ``create_stop_info_box``.
+    An empty box that stretches to its row height when placed in a
+    horizontal layout, mimicking ``kcb_linebot``'s ``create_stop_info_box``.
 
     Args:
         color: The bar fill colour.
+        width: The bar width. Defaults to :data:`ACCENT_WIDTH`.
     """
     return {
         "type": "box",
         "layout": "vertical",
-        "width": "5px",
+        "width": width,
         "backgroundColor": color,
         "cornerRadius": RADIUS_BAR,
         "contents": [],
     }
 
 
-def header_box(color: str, contents: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return the coloured bubble header box.
-
-    The ``backgroundColor`` is kept at the top level of the returned box so
-    callers (and tests) can read it directly.
-
-    Args:
-        color: Header background colour.
-        contents: Header child components (already styled for the coloured
-            background, e.g. white text).
-    """
-    return {
-        "type": "box",
-        "layout": "vertical",
-        "backgroundColor": color,
-        "paddingAll": PAD_HEADER,
-        "contents": contents,
-    }
-
-
-def section_heading(
-    text: str, *, bar_color: str = NAVY, size: str = "md"
+def heading_row(
+    title: str,
+    *,
+    accent: str = NAVY,
+    size: str = "xl",
+    color: str = NAVY,
+    weight: str = "bold",
 ) -> dict[str, Any]:
-    """Return a section heading row with a left accent bar.
+    """Return a heading row: a left accent bar followed by the title text.
+
+    Shared by the bubble header (large) and body section headings (medium).
 
     Args:
-        text: The heading label.
-        bar_color: Colour of the left accent bar. Defaults to :data:`NAVY`.
-        size: Font size of the heading text.
+        title: The heading text.
+        accent: Colour of the left accent bar. Defaults to :data:`NAVY`.
+        size: Font size of the title.
+        color: Title text colour. Defaults to :data:`NAVY`.
+        weight: Title font weight.
     """
     return {
         "type": "box",
         "layout": "horizontal",
         "spacing": "sm",
         "contents": [
-            accent_bar(bar_color),
+            accent_bar(accent),
             {
                 "type": "text",
-                "text": text,
-                "weight": "bold",
+                "text": title,
                 "size": size,
-                "color": TEXT_MAIN,
+                "color": color,
+                "weight": weight,
                 "wrap": True,
                 "gravity": "center",
             },
@@ -168,26 +150,48 @@ def section_heading(
     }
 
 
-def card(
-    contents: list[dict[str, Any]],
-    *,
-    bg: str = CARD_BG,
-    spacing: str = "sm",
+def section_heading(
+    text: str, *, accent: str = NAVY, size: str = "md"
 ) -> dict[str, Any]:
-    """Return a rounded, tone-tinted card grouping body content.
+    """Return a body section heading (a lighter :func:`heading_row`)."""
+    return heading_row(text, accent=accent, size=size)
+
+
+def white_header(
+    title: str,
+    *,
+    subtitle: str | list[str] | None = None,
+    accent: str = NAVY,
+) -> dict[str, Any]:
+    """Return the white bubble header with a navy accent and hairline.
+
+    The header carries no filled background: the title sits in navy with a
+    thin accent bar to its left (brand/category colour), optional muted
+    subtitle line(s) above it, and a navy hairline beneath to divide it from
+    the body.
 
     Args:
-        contents: The child components rendered inside the card.
-        bg: Card background colour. Defaults to :data:`CARD_BG`.
-        spacing: Vertical spacing between children.
+        title: The main header title (rendered navy, bold, ``xl``).
+        subtitle: Optional small muted line(s) shown above the title (e.g. a
+            category label or a PR badge plus company name). A single string
+            or a list of strings, each rendered as its own line.
+        accent: Colour of the left accent bar. Defaults to :data:`NAVY`;
+            proposals pass the category colour and sponsored PR passes gold.
     """
+    contents: list[dict[str, Any]] = []
+    subtitles = [subtitle] if isinstance(subtitle, str) else (subtitle or [])
+    for line in subtitles:
+        contents.append(
+            {"type": "text", "text": line, "size": "sm", "color": TEXT_WEAK}
+        )
+    contents.append(heading_row(title, accent=accent))
+    contents.append({"type": "separator", "color": NAVY})
     return {
         "type": "box",
         "layout": "vertical",
-        "spacing": spacing,
-        "backgroundColor": bg,
-        "cornerRadius": RADIUS_CARD,
-        "paddingAll": PAD_CARD,
+        "spacing": "sm",
+        "backgroundColor": WHITE,
+        "paddingAll": PAD_HEADER,
         "contents": contents,
     }
 
@@ -222,13 +226,13 @@ def bubble(
     header: dict[str, Any],
     body: list[dict[str, Any]],
     footer: list[dict[str, Any]] | None = None,
-    body_spacing: str = "md",
+    body_spacing: str = BODY_SPACING,
 ) -> dict[str, Any]:
     """Return a ``mega`` bubble skeleton with a white body ground.
 
     Args:
-        header: The header box (typically from :func:`header_box`).
-        body: The body child components (section headings and cards).
+        header: The header box (typically from :func:`white_header`).
+        body: The body child components (section headings, text, hairlines).
         footer: Optional footer child components (e.g. postback buttons).
         body_spacing: Vertical spacing between body children.
 
