@@ -1,0 +1,34 @@
+{
+    "prizes": [
+        {
+            "prize_id": "PRZ001",
+            "rank": 1,
+            "name": "テーマパーク ペアチケット",
+            "description": "人気テーマパークのペア入場チケット。",
+            "emoji": "🎢",
+            "valid_until": "2027-03-31",
+            "note": "全国の対象パークでご利用いただけます",
+            "active": true
+        },
+        {
+            "prize_id": "PRZ002",
+            "rank": 2,
+            "name": "地元名店 ペアお食事券",
+            "description": "地域の人気店で使えるペアお食事券。",
+            "emoji": "🍽️",
+            "valid_until": "2026-12-31",
+            "note": "地域の提携飲食店でご利用いただけます",
+            "active": true
+        },
+        {
+            "prize_id": "PRZ003",
+            "rank": 3,
+            "name": "地域店舗クーポン",
+            "description": "提携店で使える割引クーポン。",
+            "emoji": "🎫",
+            "valid_until": "2026-09-30",
+            "note": "提携店舗でご利用いただけます",
+            "active": true
+        }
+    ]
+}
