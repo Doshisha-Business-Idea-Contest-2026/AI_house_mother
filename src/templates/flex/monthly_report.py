@@ -18,9 +18,11 @@ from __future__ import annotations
 
 from typing import Any
 
-HEADER_COLOR = "#00579C"
+from src.templates.flex import style
+
+HEADER_COLOR = style.NAVY
 _BODY_PREVIEW_LEN = 60
-_SEPARATOR_COLOR = "#e0e0e0"
+_SEPARATOR_COLOR = style.SEPARATOR
 
 CATEGORY_EMOJI: dict[str, str] = {
     "event": "🏛️",
@@ -62,13 +64,14 @@ def _post_row(post: dict[str, Any]) -> list[dict[str, Any]]:
             "size": "md",
             "weight": "bold",
             "wrap": True,
+            "color": style.TEXT_MAIN,
         },
         {
             "type": "text",
             "text": body_preview,
             "size": "sm",
             "wrap": True,
-            "color": "#666666",
+            "color": style.TEXT_SUB,
         },
     ]
 
@@ -81,27 +84,18 @@ def _posts_section(report: dict[str, Any]) -> list[dict[str, Any]]:
 
     subtitle = f"（先月 {prev_count} / 通算 {total_count}）"
 
-    contents: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": f"🌸 頑張ったこと {current_count} 件",
-            "weight": "bold",
-            "size": "md",
-        },
-        {
-            "type": "text",
-            "text": subtitle,
-            "size": "xs",
-            "color": "#999999",
-        },
+    block: list[dict[str, Any]] = [
+        style.section_heading(f"🌸 頑張ったこと {current_count} 件"),
+        {"type": "text", "text": subtitle, "size": "xs", "color": style.TEXT_WEAK},
     ]
     if posts:
-        contents.append({"type": "separator", "color": _SEPARATOR_COLOR})
-    for index, post in enumerate(posts):
-        contents.extend(_post_row(post))
-        if index < len(posts) - 1:
-            contents.append({"type": "separator", "color": _SEPARATOR_COLOR})
-    return contents
+        card_contents: list[dict[str, Any]] = []
+        for index, post in enumerate(posts):
+            card_contents.extend(_post_row(post))
+            if index < len(posts) - 1:
+                card_contents.append(style.separator())
+        block.append(style.card(card_contents))
+    return block
 
 
 def _usage_section(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -113,41 +107,34 @@ def _usage_section(report: dict[str, Any]) -> list[dict[str, Any]]:
     consult_total = life + activity
     record_total = post_count + profile_count
 
-    contents: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": "🏠 今月の利用",
-            "weight": "bold",
-            "size": "md",
-        }
-    ]
+    lines: list[dict[str, Any]] = []
 
     # docs/04 §5.3 少回数フォールバック: below the threshold we drop the
     # numeric line and use a qualitative sentence. Zero everything → a
     # different (softer) sentence so parents don't see a bare number.
     if consult_total >= _LOW_CONSULT_THRESHOLD:
-        contents.append(
+        lines.append(
             {
                 "type": "text",
                 "text": f"相談 {consult_total}回（生活 {life} / 活動 {activity}）",
                 "size": "sm",
                 "wrap": True,
-                "color": "#333333",
+                "color": style.TEXT_MAIN,
             }
         )
     elif consult_total > 0:
-        contents.append(
+        lines.append(
             {
                 "type": "text",
                 "text": _LOW_CONSULT_TEXT,
                 "size": "sm",
                 "wrap": True,
-                "color": "#333333",
+                "color": style.TEXT_MAIN,
             }
         )
 
     if record_total > 0:
-        contents.append(
+        lines.append(
             {
                 "type": "text",
                 "text": (
@@ -156,23 +143,23 @@ def _usage_section(report: dict[str, Any]) -> list[dict[str, Any]]:
                 ),
                 "size": "sm",
                 "wrap": True,
-                "color": "#333333",
+                "color": style.TEXT_MAIN,
             }
         )
 
     # If both blocks stayed empty (no consultations, no records) we still
     # want a sentence here rather than a lone header.
-    if len(contents) == 1:
-        contents.append(
+    if not lines:
+        lines.append(
             {
                 "type": "text",
                 "text": _NO_ACTIVITY_TEXT,
                 "size": "sm",
                 "wrap": True,
-                "color": "#333333",
+                "color": style.TEXT_MAIN,
             }
         )
-    return contents
+    return [style.section_heading("🏠 今月の利用"), style.card(lines)]
 
 
 def _ai_summary_section(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -180,19 +167,18 @@ def _ai_summary_section(report: dict[str, Any]) -> list[dict[str, Any]]:
     if not summary:
         return []
     return [
-        {
-            "type": "text",
-            "text": "💬 AI寮母より",
-            "weight": "bold",
-            "size": "md",
-        },
-        {
-            "type": "text",
-            "text": summary,
-            "size": "sm",
-            "wrap": True,
-            "color": "#666666",
-        },
+        style.section_heading("💬 AI寮母より"),
+        style.card(
+            [
+                {
+                    "type": "text",
+                    "text": summary,
+                    "size": "sm",
+                    "wrap": True,
+                    "color": style.TEXT_SUB,
+                }
+            ]
+        ),
     ]
 
 
@@ -211,43 +197,30 @@ def build_monthly_report_bubble(report: dict[str, Any]) -> dict[str, Any]:
 
     body_contents: list[dict[str, Any]] = []
     body_contents.extend(_posts_section(report))
-
-    body_contents.append({"type": "separator", "color": _SEPARATOR_COLOR})
+    body_contents.append(style.separator())
     body_contents.extend(_usage_section(report))
 
     ai_contents = _ai_summary_section(report)
     if ai_contents:
-        body_contents.append({"type": "separator", "color": _SEPARATOR_COLOR})
+        body_contents.append(style.separator())
         body_contents.extend(ai_contents)
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": HEADER_COLOR,
-            "paddingAll": "16px",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": f"📊 {student_display}の今月",
-                    "color": "#ffffff",
-                    "size": "sm",
-                },
-                {
-                    "type": "text",
-                    "text": year_month,
-                    "color": "#ffffff",
-                    "size": "xl",
-                    "weight": "bold",
-                },
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
-        },
-    }
+    header = style.header_box(
+        HEADER_COLOR,
+        [
+            {
+                "type": "text",
+                "text": f"📊 {student_display}の今月",
+                "color": style.WHITE,
+                "size": "sm",
+            },
+            {
+                "type": "text",
+                "text": year_month,
+                "color": style.WHITE,
+                "size": "xl",
+                "weight": "bold",
+            },
+        ],
+    )
+    return style.bubble(header=header, body=body_contents)

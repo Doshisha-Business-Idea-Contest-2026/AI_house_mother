@@ -1,28 +1,21 @@
 """Flex Message carousel builder for activity proposals (FR-S4).
 
-The bubble structure is inspired by ``kcb_linebot/flex_templates.py``:
-size mega, colour-coded header, section-separated body, and a footer
-with two postback buttons ("詳しく聞く" / "参加した").
+Bubbles follow the shared card-in-card design language in
+:mod:`src.templates.flex.style` (T4.13): a category-coloured header, body
+details grouped inside a rounded tone card, and a footer with two postback
+buttons ("詳しく聞く" / "参加した").
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-DEFAULT_COLOR = "#00579C"  # Doshisha-ish navy blue
+from src.templates.flex import style
 
-_CATEGORY_COLORS: dict[str, str] = {
-    "event": "#0080FF",  # bright blue
-    "volunteer": "#4CAF50",  # green
-    "workshop": "#9C27B0",  # purple
-    "festival": "#E91E63",  # pink
-    "study_group": "#3F51B5",  # indigo
-    "store": "#FF9800",  # orange
-    "senior_post": "#607D8B",  # slate
-    "generated": DEFAULT_COLOR,
-    "static_fallback": "#795548",  # brown
-    "sponsored": "#C9A227",  # gold — corporate PR slot (FR-S9)
-}
+# Back-compat aliases: the palette now lives in ``style`` (single source of
+# truth). These names are preserved for existing imports and tests.
+DEFAULT_COLOR = style.NAVY
+_CATEGORY_COLORS = style.CATEGORY_COLORS
 
 MAX_BUBBLES = 3
 
@@ -40,8 +33,12 @@ _SPONSORED_DISCLOSURE_TEXT = "この案内は協賛企業からの提供です"
 
 
 def get_activity_header_color(reference_type: str) -> str:
-    """Return the header colour used for ``reference_type``."""
-    return _CATEGORY_COLORS.get(reference_type, DEFAULT_COLOR)
+    """Return the header colour used for ``reference_type``.
+
+    Thin wrapper over :func:`style.get_category_color` kept for
+    backwards-compatible imports.
+    """
+    return style.get_category_color(reference_type)
 
 
 def build_activity_carousel(
@@ -84,7 +81,7 @@ def build_activity_carousel(
 
 def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str, Any]:
     reference_type = activity.get("reference_type", "generated")
-    color = get_activity_header_color(reference_type)
+    color = style.get_category_color(reference_type)
     title = activity.get("title") or f"提案 {index}"
     summary = activity.get("summary") or ""
     location = activity.get("location") or ""
@@ -97,7 +94,7 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
         {
             "type": "text",
             "text": f"🎯 提案 {index}",
-            "color": "#ffffff",
+            "color": style.WHITE,
             "size": "sm",
         },
     ]
@@ -106,7 +103,7 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
             {
                 "type": "text",
                 "text": "🧭 AI 提案（要確認）",
-                "color": "#ffffff",
+                "color": style.WHITE,
                 "size": "sm",
                 "wrap": True,
             }
@@ -115,7 +112,7 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
         {
             "type": "text",
             "text": title,
-            "color": "#ffffff",
+            "color": style.WHITE,
             "size": "xl",
             "weight": "bold",
             "wrap": True,
@@ -128,112 +125,90 @@ def _build_bubble(*, index: int, activity: dict[str, Any], key: str) -> dict[str
             "text": summary,
             "wrap": True,
             "size": "sm",
+            "color": style.TEXT_MAIN,
         }
     ]
 
-    if location or when:
-        info_lines: list[dict[str, Any]] = []
-        if location:
-            info_lines.append(
-                {
-                    "type": "text",
-                    "text": f"📍 {location}",
-                    "size": "sm",
-                    "color": "#666666",
-                    "wrap": True,
-                }
-            )
-        if when:
-            info_lines.append(
-                {
-                    "type": "text",
-                    "text": f"🕒 {when}",
-                    "size": "sm",
-                    "color": "#666666",
-                    "wrap": True,
-                }
-            )
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
-        body_contents.append(
+    # Group the location / when / why details inside a single tone card so
+    # the proposal reads as a structured block rather than flat lines.
+    detail_lines: list[dict[str, Any]] = []
+    if location:
+        detail_lines.append(
             {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "xs",
-                "contents": info_lines,
+                "type": "text",
+                "text": f"📍 {location}",
+                "size": "sm",
+                "color": style.TEXT_SUB,
+                "wrap": True,
             }
         )
-
+    if when:
+        detail_lines.append(
+            {
+                "type": "text",
+                "text": f"🕒 {when}",
+                "size": "sm",
+                "color": style.TEXT_SUB,
+                "wrap": True,
+            }
+        )
     if why:
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
-        body_contents.append(
+        if detail_lines:
+            detail_lines.append(style.separator())
+        detail_lines.append(
             {
                 "type": "text",
                 "text": f"💡 {why}",
                 "wrap": True,
                 "size": "xs",
-                "color": "#999999",
+                "color": style.TEXT_WEAK,
             }
         )
+    if detail_lines:
+        body_contents.append(style.card(detail_lines))
 
     if reference_type in _FRESHNESS_NOTE_TYPES:
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
         body_contents.append(
             {
                 "type": "text",
                 "text": _FRESHNESS_NOTE_TEXT,
                 "wrap": True,
                 "size": "xxs",
-                "color": "#aaaaaa",
+                "color": style.TEXT_FAINT,
             }
         )
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": color,
-            "paddingAll": "16px",
-            "contents": header_contents,
+    footer_contents: list[dict[str, Any]] = [
+        {
+            "type": "button",
+            "style": "primary",
+            "color": color,
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "詳しく聞く",
+                "data": f"activity:detail:{key}",
+                "displayText": f"「{title}」について詳しく聞く",
+            },
         },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
+        {
+            "type": "button",
+            "style": "secondary",
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "参加した",
+                "data": f"activity:participated:{key}",
+                "displayText": f"「{title}」に参加した",
+            },
         },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "color": color,
-                    "height": "sm",
-                    "action": {
-                        "type": "postback",
-                        "label": "詳しく聞く",
-                        "data": f"activity:detail:{key}",
-                        "displayText": f"「{title}」について詳しく聞く",
-                    },
-                },
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "height": "sm",
-                    "action": {
-                        "type": "postback",
-                        "label": "参加した",
-                        "data": f"activity:participated:{key}",
-                        "displayText": f"「{title}」に参加した",
-                    },
-                },
-            ],
-        },
-    }
+    ]
+
+    return style.bubble(
+        header=style.header_box(color, header_contents),
+        body=body_contents,
+        footer=footer_contents,
+    )
 
 
 def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
@@ -244,7 +219,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
     and a URI apply button plus an "興味あり" postback for click tracking.
     Text is rendered verbatim from the seed (docs/04 §4.3).
     """
-    color = _CATEGORY_COLORS["sponsored"]
+    color = style.CATEGORY_COLORS["sponsored"]
     sponsor_id = sponsored.get("sponsor_id") or ""
     company = sponsored.get("company_name") or ""
     title = sponsored.get("title") or "協賛イベント"
@@ -257,7 +232,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
         {
             "type": "text",
             "text": _SPONSORED_BADGE_TEXT,
-            "color": "#ffffff",
+            "color": style.WHITE,
             "size": "sm",
             "weight": "bold",
         },
@@ -267,7 +242,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
             {
                 "type": "text",
                 "text": company,
-                "color": "#ffffff",
+                "color": style.WHITE,
                 "size": "xs",
                 "wrap": True,
             }
@@ -276,7 +251,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
         {
             "type": "text",
             "text": title,
-            "color": "#ffffff",
+            "color": style.WHITE,
             "size": "xl",
             "weight": "bold",
             "wrap": True,
@@ -289,6 +264,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
             "text": summary,
             "wrap": True,
             "size": "sm",
+            "color": style.TEXT_MAIN,
         }
     ]
 
@@ -299,7 +275,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
                 "type": "text",
                 "text": f"📅 開催: {event_date}",
                 "size": "sm",
-                "color": "#666666",
+                "color": style.TEXT_SUB,
                 "wrap": True,
             }
         )
@@ -309,29 +285,22 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
                 "type": "text",
                 "text": f"⏳ 締切: {deadline}",
                 "size": "sm",
-                "color": "#666666",
+                "color": style.TEXT_SUB,
                 "wrap": True,
             }
         )
     if info_lines:
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
-        body_contents.append(
-            {
-                "type": "box",
-                "layout": "vertical",
-                "spacing": "xs",
-                "contents": info_lines,
-            }
-        )
+        body_contents.append(style.card(info_lines))
 
-    body_contents.append({"type": "separator", "color": "#e0e0e0"})
+    # Disclosure + freshness caveat live at the body tail (FR-S9): the
+    # disclosure stays legible while the generic freshness note is faint.
     body_contents.append(
         {
             "type": "text",
             "text": _SPONSORED_DISCLOSURE_TEXT,
             "wrap": True,
             "size": "xs",
-            "color": "#999999",
+            "color": style.TEXT_WEAK,
         }
     )
     body_contents.append(
@@ -340,7 +309,7 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
             "text": _FRESHNESS_NOTE_TEXT,
             "wrap": True,
             "size": "xxs",
-            "color": "#aaaaaa",
+            "color": style.TEXT_FAINT,
         }
     )
 
@@ -373,26 +342,8 @@ def _build_sponsored_bubble(sponsored: dict[str, Any]) -> dict[str, Any]:
         }
     )
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": color,
-            "paddingAll": "16px",
-            "contents": header_contents,
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
-        },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": footer_contents,
-        },
-    }
+    return style.bubble(
+        header=style.header_box(color, header_contents),
+        body=body_contents,
+        footer=footer_contents,
+    )

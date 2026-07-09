@@ -23,10 +23,26 @@ def _make_activity(reference_type: str) -> dict[str, object]:
     }
 
 
+def _walk_texts(node: object) -> list[str]:
+    """Recursively collect every ``text`` string under a Flex node.
+
+    The card-in-card redesign (T4.13) nests body text inside rounded card
+    boxes, so a flat scan of ``body.contents`` no longer sees it.
+    """
+    texts: list[str] = []
+    if isinstance(node, dict):
+        if node.get("type") == "text" and "text" in node:
+            texts.append(node["text"])
+        for value in node.values():
+            texts.extend(_walk_texts(value))
+    elif isinstance(node, list):
+        for item in node:
+            texts.extend(_walk_texts(item))
+    return texts
+
+
 def _collect_texts(bubble: dict[str, object]) -> list[str]:
-    body = bubble["body"]  # type: ignore[index]
-    contents = body["contents"]  # type: ignore[index]
-    return [c["text"] for c in contents if c.get("type") == "text"]
+    return _walk_texts(bubble["body"])  # type: ignore[index]
 
 
 class TestFreshnessNote:

@@ -13,7 +13,9 @@ from linebot.v3.messaging import (
     QuickReplyItem,
 )
 
-HEADER_COLOR = "#00579C"
+from src.templates.flex import style
+
+HEADER_COLOR = style.NAVY
 
 WELCOME_ALT_TEXT = (
     "AI寮母へようこそ🏠 学生か保護者を選んでオンボーディングを始めましょう。"
@@ -38,7 +40,14 @@ def _feature_row(emoji: str, text: str) -> dict:
         "spacing": "sm",
         "contents": [
             {"type": "text", "text": emoji, "flex": 0, "size": "md"},
-            {"type": "text", "text": text, "wrap": True, "size": "sm", "flex": 5},
+            {
+                "type": "text",
+                "text": text,
+                "wrap": True,
+                "size": "sm",
+                "flex": 5,
+                "color": style.TEXT_MAIN,
+            },
         ],
     }
 
@@ -61,10 +70,9 @@ def build_welcome_bubble(prefix: str | None = None) -> dict:
                 "text": prefix,
                 "wrap": True,
                 "size": "sm",
-                "color": "#666666",
+                "color": style.TEXT_SUB,
             }
         )
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
 
     body_contents.append(
         {
@@ -72,48 +80,37 @@ def build_welcome_bubble(prefix: str | None = None) -> dict:
             "text": _BODY_LEAD_TEXT,
             "wrap": True,
             "size": "sm",
+            "color": style.TEXT_MAIN,
         }
     )
-    body_contents.append({"type": "separator", "color": "#e0e0e0"})
-    for emoji, text in _FEATURE_LINES:
-        body_contents.append(_feature_row(emoji, text))
-    body_contents.append({"type": "separator", "color": "#e0e0e0"})
+    # Group the three feature highlights inside a tone card so they read as a
+    # single "what you can do" block.
+    feature_rows = [_feature_row(emoji, text) for emoji, text in _FEATURE_LINES]
+    body_contents.append(style.card(feature_rows))
     body_contents.append(
         {
             "type": "text",
             "text": "下のメニューから当てはまるほうを選んでください。",
             "wrap": True,
             "size": "sm",
-            "color": "#666666",
+            "color": style.TEXT_SUB,
         }
     )
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": HEADER_COLOR,
-            "paddingAll": "16px",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "\U0001f3e0 AI寮母へようこそ",
-                    "color": "#ffffff",
-                    "size": "xl",
-                    "weight": "bold",
-                    "wrap": True,
-                }
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
-        },
-    }
+    header = style.header_box(
+        HEADER_COLOR,
+        [
+            {
+                "type": "text",
+                "text": "\U0001f3e0 AI寮母へようこそ",
+                "color": style.WHITE,
+                "size": "xl",
+                "weight": "bold",
+                "wrap": True,
+            }
+        ],
+    )
+    return style.bubble(header=header, body=body_contents)
 
 
 def build_role_quick_reply() -> QuickReply:
