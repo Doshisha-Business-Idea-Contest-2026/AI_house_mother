@@ -142,8 +142,21 @@ class TestIsReportEmpty(_TempDataDirMixin):
 
 
 def _texts(bubble: dict[str, Any]) -> list[str]:
-    body = bubble["body"]
-    return [c["text"] for c in body["contents"] if c.get("type") == "text"]
+    """Recursively collect body text (card-in-card nests it, T4.13)."""
+
+    def walk(node: Any) -> list[str]:
+        found: list[str] = []
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "text" in node:
+                found.append(node["text"])
+            for value in node.values():
+                found.extend(walk(value))
+        elif isinstance(node, list):
+            for item in node:
+                found.extend(walk(item))
+        return found
+
+    return walk(bubble["body"])
 
 
 class TestFlexRendering:

@@ -13,9 +13,11 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from src.templates.flex import style
+
 JST = ZoneInfo("Asia/Tokyo")
 
-HEADER_COLOR = "#00579C"
+HEADER_COLOR = style.NAVY
 
 _GRADE_LABELS: dict[str, str] = {
     "1": "1 年",
@@ -36,26 +38,11 @@ def _format_updated_at(iso_ts: str) -> str:
 
 
 def _field_row(label: str, value: str) -> dict[str, Any]:
-    return {
-        "type": "box",
-        "layout": "vertical",
-        "spacing": "xs",
-        "contents": [
-            {
-                "type": "text",
-                "text": label,
-                "size": "xs",
-                "color": "#999999",
-            },
-            {
-                "type": "text",
-                "text": value,
-                "size": "md",
-                "weight": "bold",
-                "wrap": True,
-            },
-        ],
-    }
+    """Return a stacked label/value pair.
+
+    Thin wrapper over :func:`style.label_value` kept for call-site clarity.
+    """
+    return style.label_value(label, value)
 
 
 def build_profile_view_bubble(profile: dict[str, Any]) -> dict[str, Any]:
@@ -76,60 +63,49 @@ def build_profile_view_bubble(profile: dict[str, Any]) -> dict[str, Any]:
     want_to_do = profile.get("want_to_do") or "—"
     updated_at = _format_updated_at(profile.get("updated_at", ""))
 
-    body_contents: list[dict[str, Any]] = [
-        _field_row("🏫 大学", university),
-        {"type": "separator", "color": "#e0e0e0"},
-        _field_row("📚 学部", faculty),
-        {"type": "separator", "color": "#e0e0e0"},
-        _field_row("🎓 学年", grade),
-        {"type": "separator", "color": "#e0e0e0"},
-        _field_row("💫 興味のあること", interests),
-        {"type": "separator", "color": "#e0e0e0"},
-        _field_row("🔥 最近頑張っていること", recent_effort),
-        {"type": "separator", "color": "#e0e0e0"},
-        _field_row("🎯 やってみたいこと", want_to_do),
+    fields: list[tuple[str, str]] = [
+        ("🏫 大学", university),
+        ("📚 学部", faculty),
+        ("🎓 学年", grade),
+        ("💫 興味のあること", interests),
+        ("🔥 最近頑張っていること", recent_effort),
+        ("🎯 やってみたいこと", want_to_do),
     ]
+    card_contents: list[dict[str, Any]] = []
+    for index, (label, value) in enumerate(fields):
+        card_contents.append(_field_row(label, value))
+        if index < len(fields) - 1:
+            card_contents.append(style.separator())
+
+    body_contents: list[dict[str, Any]] = [style.card(card_contents)]
 
     if updated_at:
-        body_contents.append({"type": "separator", "color": "#e0e0e0"})
         body_contents.append(
             {
                 "type": "text",
                 "text": f"⏰ 最終更新: {updated_at}",
                 "size": "xs",
-                "color": "#999999",
+                "color": style.TEXT_WEAK,
             }
         )
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": HEADER_COLOR,
-            "paddingAll": "16px",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "👤 あなたのプロフィール",
-                    "color": "#ffffff",
-                    "size": "sm",
-                },
-                {
-                    "type": "text",
-                    "text": "登録済みの内容はこちらです",
-                    "color": "#ffffff",
-                    "size": "xl",
-                    "weight": "bold",
-                    "wrap": True,
-                },
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": body_contents,
-        },
-    }
+    header = style.header_box(
+        HEADER_COLOR,
+        [
+            {
+                "type": "text",
+                "text": "👤 あなたのプロフィール",
+                "color": style.WHITE,
+                "size": "sm",
+            },
+            {
+                "type": "text",
+                "text": "登録済みの内容はこちらです",
+                "color": style.WHITE,
+                "size": "xl",
+                "weight": "bold",
+                "wrap": True,
+            },
+        ],
+    )
+    return style.bubble(header=header, body=body_contents)

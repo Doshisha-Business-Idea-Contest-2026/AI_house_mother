@@ -16,10 +16,12 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from src.templates.flex import style
+
 JST = ZoneInfo("Asia/Tokyo")
 
-HEADER_COLOR = "#00579C"  # match activity_carousel DEFAULT_COLOR
-CODE_TEXT_COLOR = "#00579C"
+HEADER_COLOR = style.NAVY
+CODE_TEXT_COLOR = style.NAVY
 
 
 def _format_expiry(expires_at_iso: str) -> str:
@@ -42,36 +44,30 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
     expiry = _format_expiry(expires_at_iso)
     share_line = f"AI寮母を友だち追加して、このコードを入力してね: [{code}]"
 
-    return {
-        "type": "bubble",
-        "size": "mega",
-        "header": {
-            "type": "box",
-            "layout": "vertical",
-            "backgroundColor": HEADER_COLOR,
-            "paddingAll": "16px",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": "🔑 保護者連携コード",
-                    "color": "#ffffff",
-                    "size": "sm",
-                },
-                {
-                    "type": "text",
-                    "text": "保護者に共有してね",
-                    "color": "#ffffff",
-                    "size": "xl",
-                    "weight": "bold",
-                    "wrap": True,
-                },
-            ],
-        },
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "md",
-            "contents": [
+    header = style.header_box(
+        HEADER_COLOR,
+        [
+            {
+                "type": "text",
+                "text": "🔑 保護者連携コード",
+                "color": style.WHITE,
+                "size": "sm",
+            },
+            {
+                "type": "text",
+                "text": "保護者に共有してね",
+                "color": style.WHITE,
+                "size": "xl",
+                "weight": "bold",
+                "wrap": True,
+            },
+        ],
+    )
+
+    body_contents: list[dict[str, Any]] = [
+        # The code itself sits in a highlighted tone card for emphasis.
+        style.card(
+            [
                 {
                     "type": "text",
                     "text": code,
@@ -79,89 +75,81 @@ def build_invitation_bubble(code: str, expires_at_iso: str) -> dict[str, Any]:
                     "size": "3xl",
                     "weight": "bold",
                     "align": "center",
-                },
-                {"type": "separator", "color": "#e0e0e0"},
+                }
+            ],
+            bg=style.TONE_BG,
+        ),
+        style.card(
+            [
                 {
-                    "type": "box",
-                    "layout": "vertical",
-                    "spacing": "xs",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": f"⏰ 有効期限: {expiry}",
-                            "size": "sm",
-                            "color": "#666666",
-                            "wrap": True,
-                        },
-                        {
-                            "type": "text",
-                            "text": "1 回限り有効",
-                            "size": "xs",
-                            "color": "#999999",
-                        },
-                    ],
+                    "type": "text",
+                    "text": f"⏰ 有効期限: {expiry}",
+                    "size": "sm",
+                    "color": style.TEXT_SUB,
+                    "wrap": True,
                 },
-                {"type": "separator", "color": "#e0e0e0"},
+                {
+                    "type": "text",
+                    "text": "1 回限り有効",
+                    "size": "xs",
+                    "color": style.TEXT_WEAK,
+                },
+            ]
+        ),
+        style.card(
+            [
                 {
                     "type": "text",
                     "text": "共有用メッセージ:",
                     "size": "xs",
-                    "color": "#999999",
+                    "color": style.TEXT_WEAK,
                 },
                 {
                     "type": "text",
                     "text": share_line,
                     "size": "sm",
                     "wrap": True,
+                    "color": style.TEXT_MAIN,
                 },
-                {"type": "separator", "color": "#e0e0e0"},
-                {
-                    "type": "text",
-                    "text": "🔒 保護者に共有される内容",
-                    "size": "xs",
-                    "color": "#999999",
-                    "weight": "bold",
-                },
-                {
-                    "type": "text",
-                    "text": (
-                        "「保護者に共有する」で投稿した頑張ったことに加え、"
-                        "生活・活動相談の利用状況（回数）が月次レポートで届きます。"
-                    ),
-                    "size": "xs",
-                    "color": "#666666",
-                    "wrap": True,
-                },
-            ],
+            ]
+        ),
+        style.section_heading("🔒 保護者に共有される内容", size="sm"),
+        {
+            "type": "text",
+            "text": (
+                "「保護者に共有する」で投稿した頑張ったことに加え、"
+                "生活・活動相談の利用状況（回数）が月次レポートで届きます。"
+            ),
+            "size": "xs",
+            "color": style.TEXT_SUB,
+            "wrap": True,
         },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
-                {
-                    "type": "button",
-                    "style": "primary",
-                    "color": HEADER_COLOR,
-                    "height": "sm",
-                    "action": {
-                        "type": "postback",
-                        "label": "🔄 新しいコードを発行",
-                        "data": "invite:regenerate",
-                        "displayText": "新しいコードを発行",
-                    },
-                },
-                {
-                    "type": "button",
-                    "style": "secondary",
-                    "height": "sm",
-                    "action": {
-                        "type": "postback",
-                        "label": "🏠 メインメニュー",
-                        "data": "menu:main",
-                        "displayText": "メインメニュー",
-                    },
-                },
-            ],
+    ]
+
+    footer_contents: list[dict[str, Any]] = [
+        {
+            "type": "button",
+            "style": "primary",
+            "color": HEADER_COLOR,
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "🔄 新しいコードを発行",
+                "data": "invite:regenerate",
+                "displayText": "新しいコードを発行",
+            },
         },
-    }
+        {
+            "type": "button",
+            "style": "secondary",
+            "height": "sm",
+            "action": {
+                "type": "postback",
+                "label": "🏠 メインメニュー",
+                "data": "menu:main",
+                "displayText": "メインメニュー",
+            },
+        },
+    ]
+
+    return style.bubble(header=header, body=body_contents, footer=footer_contents)

@@ -191,7 +191,19 @@ AI_house_mother/
 
 ### 4.6 `src/templates/flex/`
 
-Flex Message ビルダー関数。それぞれ引数を受け取って FlexMessage オブジェクトを返す。
+Flex Message ビルダー関数。それぞれ引数を受け取って Flex Message の `contents`
+（`dict`）を返す。
+
+- `style.py`: Flex デザインの単一情報源（T4.13）。カラートークン（同志社ネイビー
+  `#00579C` 基調・`CATEGORY_COLORS`・背景トーン・テキスト階調・separator）、角丸・
+  パディングの定数、および共通ヘルパー（`header_box` / `section_heading`（左アクセント
+  バー付き見出し）/ `card`（角丸カードインカード）/ `label_value` / `accent_bar` /
+  `separator` / `bubble` スケルトン）を提供する。参考: `kcb_linebot/flex_templates.py`
+  の `create_stop_info_box`（左アクセントバー）・`create_single_route_bubble`（styles
+  背景制御）。
+- 各 builder（`activity_carousel` / `welcome` / `monthly_report` / `invitation_code` /
+  `profile_view`）は `style` を用いてカードインカード構造で bubble を組む。色・separator・
+  skeleton を builder 側で個別にハードコードしない。
 
 ### 4.7 `src/utils/`
 
