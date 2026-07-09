@@ -857,10 +857,10 @@ Push は §3.5 の暫定運用に従い `sender` 未指定で送出。Day 4 T4.1
   - `invitation_code.py` — 招待コード表示
   - `profile_view.py` — プロフィール閲覧（Day 4 追加）
 - テンプレートは build 関数として実装（既存 `kcb_linebot/flex_templates.py` と同様のパターン）
-- **共通スタイルモジュール `templates/flex/style.py` 経由でカードインカード構造を統一**（T4.13）。
-  カラートークン・角丸・パディング・左アクセントバー生成などを単一情報源として集約し、5 builder が
-  参照する。§4.3 の seed / AI 提案 / sponsored PR の視覚的区別（ゴールドヘッダー＋バッジ＋開示文）は
-  デザイン刷新後も維持する。
+- **共通スタイルモジュール `templates/flex/style.py` 経由で白基調・アクセントバー基調に統一**（T4.13）。
+  白ヘッダー＋navy 細アクセントバー、本文は余白＋hairline のエアリー意匠。カラートークン・アクセント
+  バー生成などを単一情報源として集約し、5 builder が参照する。§4.3 の seed / AI 提案 / sponsored PR の
+  視覚的区別（sponsored はゴールドのアクセントバー＋バッジ＋開示文）はデザイン刷新後も維持する。
 
 ## 9. 応答性能
 
