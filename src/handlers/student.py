@@ -10,7 +10,9 @@ postback prefixes.
 """
 
 import logging
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from linebot.v3.messaging import (
     MessageAction,
@@ -65,6 +67,8 @@ from src.templates.quick_reply import (
 from src.utils import text_format
 
 logger = logging.getLogger(__name__)
+
+_JST = ZoneInfo("Asia/Tokyo")
 
 MAX_TEXT_LEN = 200
 MIN_INTERESTS = 1
@@ -850,7 +854,6 @@ _POST_CATEGORY_LABELS: dict[str, str] = {
 }
 _POST_STEP_ORDER: tuple[str, ...] = (
     "post.category",
-    "post.title",
     "post.period",
     "post.summary",
     "post.learned",
@@ -859,18 +862,25 @@ _POST_STEP_ORDER: tuple[str, ...] = (
     "post.area",
     "post.share_parent",
     "post.confirm",
+    "post.title_edit",
 )
 
 # docs/04 §4.5: the five structured free-text steps that replaced the old
 # single ``post.body`` blob. ``_POST_STEP_META`` drives validation/record,
 # ``_POST_NEXT`` the transition, and ``_POST_ENTRY_PROMPTS`` the question
 # shown when advancing INTO a step (the period question itself is emitted
-# from the post.title branch).
+# from the post.category branch). ``post.period`` records under
+# ``period_raw``; the LLM produces the normalized ``period`` at finalize
+# (T4.15, docs/06 §4.5).
 _POST_TEXT_STEPS: frozenset[str] = frozenset(
     {"post.period", "post.summary", "post.learned", "post.regret", "post.advice"}
 )
 _POST_STEP_META: dict[str, dict[str, Any]] = {
-    "post.period": {"key": "period", "required": False, "max": posts.MAX_PERIOD_LEN},
+    "post.period": {
+        "key": "period_raw",
+        "required": False,
+        "max": posts.MAX_PERIOD_LEN,
+    },
     "post.summary": {
         "key": "summary",
         "required": True,
@@ -921,7 +931,7 @@ _POST_ENTRY_PROMPTS: dict[str, tuple[str, Any]] = {
 
 
 def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
-    """Kick off the 6-step experience posting dialog for a student."""
+    """Kick off the experience posting dialog for a student (docs/04 §4.5)."""
     user_id = event.source.user_id
     session.set_state(user_id, "post.category")
     reply_text(
@@ -939,16 +949,20 @@ def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
 def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
     """Handle free-text input for the post flow's text steps.
 
-    Covers ``post.title``, the five structured steps in
-    :data:`_POST_TEXT_STEPS` (period / summary / learned / regret /
-    advice), and ``post.area``. Quick Reply / Postback steps are nudged
-    via :func:`_reprompt_post_step`.
+    Covers the five structured steps in :data:`_POST_TEXT_STEPS` (period /
+    summary / learned / regret / advice), ``post.area`` and the optional
+    ``post.title_edit`` re-entry (T4.15). Quick Reply / Postback steps are
+    nudged via :func:`_reprompt_post_step`.
     """
     user_id = event.source.user_id
     text = event.message.text.strip()
     step = state["state"]
 
-    if step == "post.title":
+    if step in _POST_TEXT_STEPS:
+        _handle_post_field_text(event, step, text)
+        return
+
+    if step == "post.title_edit":
         if not text:
             reply_text(
                 event.reply_token,
@@ -957,22 +971,8 @@ def handle_post_text(event: MessageEvent, state: dict[str, Any]) -> None:
                 sender="system",
             )
             return
-        title = text[: posts.MAX_TITLE_LEN]
-        _record(user_id, "title", title)
-        session.set_state(user_id, "post.period", **_context_snapshot(user_id))
-        reply_text(
-            event.reply_token,
-            (
-                "🗓️ いつ・どのくらいの期間の話ですか？（例: 先週末、6〜7月）\n"
-                "特になければ「スキップ」と送ってください。"
-            ),
-            quick_reply=post_skip_quick_reply(),
-            sender="system",
-        )
-        return
-
-    if step in _POST_TEXT_STEPS:
-        _handle_post_field_text(event, step, text)
+        _record(user_id, "title", text[: posts.MAX_TITLE_LEN])
+        _send_post_confirmation(event)
         return
 
     if step == "post.area":
@@ -1060,14 +1060,14 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
             )
             return
         _record(user_id, "category", category)
-        session.set_state(user_id, "post.title", **_context_snapshot(user_id))
+        session.set_state(user_id, "post.period", **_context_snapshot(user_id))
         reply_text(
             event.reply_token,
             (
-                "📝 短いタイトルを教えてください（例: 下鴨神社の清掃活動に参加）。\n"
-                f"（{posts.MAX_TITLE_LEN} 文字以内）"
+                "🗓️ いつ・どのくらいの期間の話ですか？（例: 先週末、去年の10月）\n"
+                "特になければ「スキップ」と送ってください。"
             ),
-            quick_reply=cancel_quick_reply(),
+            quick_reply=post_skip_quick_reply(),
             sender="system",
         )
         return
@@ -1083,7 +1083,17 @@ def handle_post_postback(event: PostbackEvent, data: str) -> None:
             )
             return
         _record(user_id, "share_with_parent", choice == "yes")
-        _send_post_confirmation(event)
+        _run_post_finalize(event)
+        return
+
+    if data == "post:title:edit":
+        session.set_state(user_id, "post.title_edit", **_context_snapshot(user_id))
+        reply_text(
+            event.reply_token,
+            f"✏️ 新しいタイトルを入力してください（{posts.MAX_TITLE_LEN} 文字以内）。",
+            quick_reply=cancel_quick_reply(),
+            sender="system",
+        )
         return
 
     if data == "post:confirm:yes":
@@ -1123,39 +1133,104 @@ def _reprompt_post_step(event: MessageEvent, step: str) -> None:
         )
 
 
-def _send_post_confirmation(event: PostbackEvent) -> None:
-    """Show the review card summarising the post before final submission."""
-    user_id = event.source.user_id
-    ctx = _context_snapshot(user_id)
+def _build_post_confirmation_text(ctx: dict[str, Any]) -> str:
+    """Render the review-card text from the collected post context.
+
+    Shows the AI-generated title and the normalized period; when the raw
+    words differ from the normalized value both are shown so the student
+    can catch a bad normalization before posting (T4.15, docs/04 §4.5).
+    """
     category_label = _POST_CATEGORY_LABELS.get(
         ctx.get("category", ""), ctx.get("category", "")
     )
-    area_raw: str | None = ctx.get("area")
-    area_normalized = posts._normalize_area(area_raw)
+    area_normalized = posts._normalize_area(ctx.get("area"))
     area_display = area_normalized if area_normalized is not None else "（指定なし）"
-    share = ctx.get("share_with_parent", False)
-    share_label = "共有する" if share else "共有しない"
+    share_label = "共有する" if ctx.get("share_with_parent", False) else "共有しない"
 
     def _field(value: str | None) -> str:
         return value if value else "（スキップ）"
 
-    summary = (
+    period = (ctx.get("period") or "").strip()
+    period_raw = (ctx.get("period_raw") or "").strip()
+    if period and period_raw and period != period_raw:
+        period_display = f"{period}（元: {period_raw}）"
+    elif period:
+        period_display = period
+    elif period_raw:
+        period_display = period_raw
+    else:
+        period_display = "（スキップ）"
+
+    return (
         "内容を確認してください:\n"
         f"📂 カテゴリ: {category_label}\n"
-        f"📝 タイトル: {ctx.get('title', '')}\n"
-        f"🗓️ いつ: {_field(ctx.get('period'))}\n"
+        f"📝 タイトル（AI 提案）: {ctx.get('title', '')}\n"
+        f"🗓️ いつ: {period_display}\n"
         f"✏️ やったこと: {ctx.get('summary', '')}\n"
         f"💡 学び: {ctx.get('learned', '')}\n"
         f"😥 残念・注意: {_field(ctx.get('regret'))}\n"
         f"📣 次の人へ: {_field(ctx.get('advice'))}\n"
         f"📍 場所: {area_display}\n"
         f"\U0001f468‍\U0001f469‍\U0001f467 保護者共有: {share_label}\n\n"
-        "この内容で投稿しますか？"
+        "この内容で投稿しますか？（タイトルは変更できます）"
     )
+
+
+def _run_post_finalize(event: PostbackEvent) -> None:
+    """Run the LLM finalize call, then push the confirmation card.
+
+    Triggered right after the parent-share choice, when all fields are
+    collected. Shows a Loading Indicator while ``gemini.finalize_post``
+    generates the title and normalizes the period, then stores both in
+    the session and pushes the review card (T4.15, docs/06 §4.5).
+    ``finalize_post`` never raises for API problems, but we still guard
+    defensively so the flow always reaches ``post.confirm``.
+    """
+    user_id = event.source.user_id
+    ctx = _context_snapshot(user_id)
+    show_loading(user_id)
+
+    today = datetime.now(_JST).strftime("%Y-%m-%d")
+    summary_text = ctx.get("summary", "")
+    period_raw = ctx.get("period_raw")
+    try:
+        result = gemini.finalize_post(
+            category=ctx.get("category", "other"),
+            summary=summary_text,
+            learned=ctx.get("learned", ""),
+            regret=ctx.get("regret"),
+            advice=ctx.get("advice"),
+            area=ctx.get("area"),
+            period_raw=period_raw,
+            today=today,
+        )
+        title = result["title"]
+        period = result["period"]
+    except Exception:
+        logger.exception("finalize_post failed; using fallback")
+        title = (summary_text or "").strip()[: posts.MAX_TITLE_LEN]
+        period = (period_raw or "").strip()
+
+    _record(user_id, "title", title)
+    _record(user_id, "period", period)
+    ctx = _context_snapshot(user_id)
+    session.set_state(user_id, "post.confirm", **ctx)
+    push_text(
+        user_id,
+        _build_post_confirmation_text(ctx),
+        quick_reply=post_confirm_quick_reply(),
+        sender="system",
+    )
+
+
+def _send_post_confirmation(event: PostbackEvent) -> None:
+    """Re-show the review card via reply (used after a title edit)."""
+    user_id = event.source.user_id
+    ctx = _context_snapshot(user_id)
     session.set_state(user_id, "post.confirm", **ctx)
     reply_text(
         event.reply_token,
-        summary,
+        _build_post_confirmation_text(ctx),
         quick_reply=post_confirm_quick_reply(),
         sender="system",
     )
@@ -1175,6 +1250,7 @@ def _finalize_post(event: PostbackEvent) -> None:
             area=ctx.get("area"),
             share_with_parent=bool(ctx.get("share_with_parent", False)),
             period=ctx.get("period"),
+            period_raw=ctx.get("period_raw"),
             regret=ctx.get("regret"),
             advice=ctx.get("advice"),
         )

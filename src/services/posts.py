@@ -175,6 +175,7 @@ def add_post(
     area: str | None,
     share_with_parent: bool,
     period: str | None = None,
+    period_raw: str | None = None,
     regret: str | None = None,
     advice: str | None = None,
 ) -> dict[str, Any]:
@@ -194,7 +195,10 @@ def add_post(
         area: Free-text location, normalized via :func:`_normalize_area`.
         share_with_parent: Whether the post is exposed to linked parents
             through the monthly summary.
-        period: When / duration (optional, :data:`MAX_PERIOD_LEN`).
+        period: The LLM-normalized absolute period (optional,
+            :data:`MAX_PERIOD_LEN`). Used for the composed ``body``.
+        period_raw: The user's raw period words before normalization
+            (optional, :data:`MAX_PERIOD_LEN`). Preserved for intent.
         regret: What was disappointing / caveats (optional, :data:`MAX_REGRET_LEN`).
         advice: Advice for the next person (optional, :data:`MAX_ADVICE_LEN`).
 
@@ -205,10 +209,15 @@ def add_post(
         raise ValueError(f"Invalid category: {category}")
 
     period_v = _truncate(period, MAX_PERIOD_LEN)
+    period_raw_v = _truncate(period_raw, MAX_PERIOD_LEN)
     summary_v = _truncate(summary, MAX_SUMMARY_LEN) or ""
     learned_v = _truncate(learned, MAX_LEARNED_LEN) or ""
     regret_v = _truncate(regret, MAX_REGRET_LEN)
     advice_v = _truncate(advice, MAX_ADVICE_LEN)
+
+    # The body's 【いつ】 uses the normalized period; fall back to the raw
+    # words when normalization was skipped or failed (docs/05 §4.3).
+    period_for_body = period_v or period_raw_v
 
     data = _load()
     post_id = _next_post_id(data["posts"])
@@ -217,12 +226,13 @@ def add_post(
         "line_user_id": line_user_id,
         "category": category,
         "title": title.strip()[:MAX_TITLE_LEN],
+        "period_raw": period_raw_v,
         "period": period_v,
         "summary": summary_v,
         "learned": learned_v,
         "regret": regret_v,
         "advice": advice_v,
-        "body": compose_body(period_v, summary_v, learned_v, regret_v, advice_v),
+        "body": compose_body(period_for_body, summary_v, learned_v, regret_v, advice_v),
         "area": _normalize_area(area),
         "share_with_parent": bool(share_with_parent),
         "created_at": datetime.now(JST).isoformat(),

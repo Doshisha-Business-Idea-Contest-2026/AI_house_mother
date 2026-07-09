@@ -60,6 +60,22 @@ _ACTIVITY_JSON_SCHEMA = {
     },
 }
 
+# docs/06 §4.5: JSON schema for the post-finalize call (title generation +
+# period normalization). Kept minimal so the model returns exactly the two
+# fields the confirmation card needs.
+_POST_FINALIZE_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "period": {"type": "string"},
+    },
+    "required": ["title", "period"],
+}
+
+# Snappy budget for the finalize call: it runs inline before the
+# confirmation card, so we keep it well under the webhook timeout.
+_FINALIZE_TIMEOUT_S = 8
+
 
 _configured = False
 
@@ -366,6 +382,90 @@ def summarize_month(
     return answer
 
 
+def finalize_post(
+    category: str,
+    summary: str,
+    learned: str,
+    regret: str | None,
+    advice: str | None,
+    area: str | None,
+    period_raw: str | None,
+    *,
+    today: str,
+) -> dict[str, str]:
+    """Generate a title and normalize the period for an experience post.
+
+    Runs a single JSON-mode Gemini call (FR-S6 / T4.15, docs/06 §4.5) to
+    (1) produce a concise title from the post content and (2) rewrite the
+    free-text ``period_raw`` into an absolute expression anchored on
+    ``today``. Always returns a usable dict: on ``GEMINI_MOCK_MODE``,
+    failure, empty response, or malformed JSON it falls back to
+    ``title = summary[:MAX_TITLE_LEN]`` and ``period = period_raw``, so
+    the post flow never blocks.
+
+    Args:
+        category: Post category value.
+        summary: What happened (required).
+        learned: What was learned (required).
+        regret: Disappointment / caveats, or ``None``.
+        advice: Advice for the next person, or ``None``.
+        area: Free-text location, or ``None``.
+        period_raw: The user's raw period words, or ``None``.
+        today: Reference date ``"YYYY-MM-DD"`` (JST) for relative periods.
+
+    Returns:
+        ``{"title": str, "period": str}`` with the title capped at
+        :data:`posts.MAX_TITLE_LEN` and the period at
+        :data:`posts.MAX_PERIOD_LEN`.
+    """
+    fallback_title = (summary or "").strip()[: posts.MAX_TITLE_LEN]
+    fallback_period = (period_raw or "").strip()
+
+    if GEMINI_MOCK_MODE:
+        logger.info("[GEMINI_MOCK] finalize_post returning fallback")
+        return {"title": fallback_title, "period": fallback_period}
+
+    prompt = prompts.build_post_finalize_prompt(
+        category=category,
+        summary=summary,
+        learned=learned,
+        regret=regret,
+        advice=advice,
+        area=area,
+        period_raw=period_raw,
+        today=today,
+    )
+
+    parsed: dict[str, Any] = {}
+    try:
+        cl = _build_client()
+        response = cl.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.3,
+                "max_output_tokens": 120,
+                "response_mime_type": "application/json",
+                "response_schema": _POST_FINALIZE_JSON_SCHEMA,
+            },
+            request_options={"timeout": _FINALIZE_TIMEOUT_S},
+        )
+        parsed = _parse_finalize_json((response.text or "").strip())
+    except gexc.ResourceExhausted:
+        logger.warning("[GEMINI_FALLBACK] rate limit on finalize_post")
+    except gexc.DeadlineExceeded:
+        logger.warning("[GEMINI_FALLBACK] timeout on finalize_post")
+    except Exception:
+        logger.exception("[GEMINI_FALLBACK] finalize_post failed")
+
+    title = (parsed.get("title") or "").strip()[: posts.MAX_TITLE_LEN] or fallback_title
+    period = (parsed.get("period") or "").strip()[: posts.MAX_PERIOD_LEN]
+    if not period:
+        # Empty from the model: keep the user's own words rather than
+        # dropping the period entirely (only truly-blank input stays "").
+        period = fallback_period
+    return {"title": title, "period": period}
+
+
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -401,3 +501,25 @@ def _parse_activity_json(raw: str) -> list[dict[str, Any]]:
         item.setdefault("reference_type", "generated")
         activities.append(item)
     return activities
+
+
+def _parse_finalize_json(raw: str) -> dict[str, Any]:
+    """Parse the JSON object returned by the post-finalize call.
+
+    Returns an empty dict on any problem (empty string, malformed JSON,
+    or a non-object top level) so :func:`finalize_post` applies its
+    fallback.
+    """
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("[GEMINI_FALLBACK] finalize JSON parse failed: %s", raw[:200])
+        return {}
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "[GEMINI_FALLBACK] finalize JSON top-level not an object: %s", type(parsed)
+        )
+        return {}
+    return parsed
