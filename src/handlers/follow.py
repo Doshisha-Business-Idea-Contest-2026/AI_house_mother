@@ -31,5 +31,4 @@ def handle_follow(event: FollowEvent) -> None:
         alt_text=alt_text,
         contents=contents,
         quick_reply=qr,
-        sender="friendly",
     )

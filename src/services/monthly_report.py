@@ -326,7 +326,6 @@ def push_previous_month_to_all(
                 contents=bubble,
                 quick_reply=main_menu_quick_reply("parent"),
                 raise_on_error=True,
-                sender="notify",
             )
             counters["sent"] += 1
             logger.info(

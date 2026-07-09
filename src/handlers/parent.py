@@ -95,7 +95,6 @@ def start_link_flow(event: MessageEvent | PostbackEvent) -> None:
         event.reply_token,
         LINK_PROMPT,
         quick_reply=cancel_quick_reply(),
-        sender="system",
     )
 
 
@@ -147,7 +146,6 @@ def handle_link_text(event: MessageEvent) -> None:
             student_id,
             _LINK_COMPLETED_STUDENT,
             quick_reply=main_menu_quick_reply("student"),
-            sender="notify",
         )
     except Exception:
         logger.exception("push_text to student failed")
@@ -156,7 +154,6 @@ def handle_link_text(event: MessageEvent) -> None:
         event.reply_token,
         _LINK_COMPLETED_PARENT,
         quick_reply=main_menu_quick_reply("parent"),
-        sender="notify",
     )
     logger.info(
         "parent_link completed parent=%s student=%s",
@@ -190,7 +187,6 @@ def handle_monthly_report(event: MessageEvent | PostbackEvent) -> None:
                 "先に「🔗 学生と連携」から招待コードを入力してください。"
             ),
             quick_reply=main_menu_quick_reply("parent"),
-            sender="system",
         )
         return
 
@@ -218,7 +214,6 @@ def _reply_report_for(
                 event.reply_token,
                 text,
                 quick_reply=main_menu_quick_reply("parent"),
-                sender="friendly",
             )
         return
 
@@ -233,7 +228,6 @@ def _reply_report_for(
             alt_text=alt_text,
             contents=bubble,
             quick_reply=main_menu_quick_reply("parent"),
-            sender="friendly",
         )
 
 
@@ -247,7 +241,6 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
                 "はまだ頑張ったことの記録がありません。"
             ),
             quick_reply=main_menu_quick_reply("parent"),
-            sender="notify",
         )
         return
     bubble = build_monthly_report_bubble(report)
@@ -260,7 +253,6 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
         alt_text=alt_text,
         contents=bubble,
         quick_reply=main_menu_quick_reply("parent"),
-        sender="notify",
     )
 
 
@@ -287,7 +279,6 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
 
@@ -297,7 +288,6 @@ def _handle_link_failure(event: MessageEvent, user_id: str, err: str) -> None:
         event.reply_token,
         f"{message}{hint}\n\n{LINK_PROMPT}",
         quick_reply=cancel_quick_reply(),
-        sender="system",
     )
 
 
@@ -310,12 +300,10 @@ def _reply_placeholder(event: PostbackEvent, role: str | None, text: str) -> Non
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
     reply_text(
         event.reply_token,
         text,
         quick_reply=main_menu_quick_reply(role),
-        sender="system",
     )

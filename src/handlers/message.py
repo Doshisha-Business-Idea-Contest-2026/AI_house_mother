@@ -106,7 +106,6 @@ def handle_text(event: MessageEvent) -> None:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
 
@@ -149,7 +148,6 @@ def handle_text(event: MessageEvent) -> None:
             event.reply_token,
             "了解しました。「プロフィール登録」と送ればいつでも登録を始められます。",
             quick_reply=main_menu_quick_reply("student"),
-            sender="system",
         )
         return
 
@@ -280,7 +278,6 @@ def handle_non_text(event: MessageEvent) -> None:
             event.reply_token,
             "テキストで送ってください。中断する場合は「キャンセル」と送ってください。",
             quick_reply=cancel_quick_reply(),
-            sender="system",
         )
         return
 
@@ -290,7 +287,6 @@ def handle_non_text(event: MessageEvent) -> None:
             event.reply_token,
             "メッセージありがとうございます😊\n下のメニューから使いたい機能を選んでください👇",
             quick_reply=main_menu_quick_reply("student"),
-            sender="friendly",
         )
         return
     if role == "parent":
@@ -298,7 +294,6 @@ def handle_non_text(event: MessageEvent) -> None:
             event.reply_token,
             "メッセージありがとうございます😊\n下のメニューから使いたい機能を選んでください👇",
             quick_reply=main_menu_quick_reply("parent"),
-            sender="friendly",
         )
         return
 
@@ -310,7 +305,6 @@ def handle_non_text(event: MessageEvent) -> None:
         alt_text=alt_text,
         contents=contents,
         quick_reply=qr,
-        sender="system",
     )
 
 
@@ -329,21 +323,18 @@ def _reply_help(event: MessageEvent, user_id: str) -> None:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
     elif role == "student":
         reply_text(
             event.reply_token,
             HELP_STUDENT,
             quick_reply=main_menu_quick_reply("student"),
-            sender="system",
         )
     else:
         reply_text(
             event.reply_token,
             HELP_PARENT,
             quick_reply=main_menu_quick_reply("parent"),
-            sender="system",
         )
 
 
@@ -356,14 +347,12 @@ def _reply_main_menu(event: MessageEvent, user_id: str) -> None:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
     reply_text(
         event.reply_token,
         "メインメニューです。下のメニューから選んでください👇",
         quick_reply=main_menu_quick_reply(role),
-        sender="system",
     )
 
 
@@ -383,14 +372,12 @@ def _reply_placeholder(event: MessageEvent, user_id: str, text: str) -> None:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return
     reply_text(
         event.reply_token,
         text,
         quick_reply=main_menu_quick_reply(role),
-        sender="system",
     )
 
 
@@ -406,13 +393,11 @@ def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
             alt_text=alt_text,
             contents=contents,
             quick_reply=qr,
-            sender="system",
         )
         return False
     # role is the other one
     reply_text(
         event.reply_token,
         f"この操作は{'学生' if required == 'student' else '保護者'}アカウント向けです。",
-        sender="system",
     )
     return False

@@ -7,14 +7,10 @@ for their ``@handler.add`` registration side effects.
 
 import logging
 import logging.config
-from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from src.config import LOG_LEVEL
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _configure_logging() -> None:
@@ -61,15 +57,6 @@ _configure_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI House Mother LINE Bot")
-
-# Serve Sender switch icons (docs/04 §3.5). Mounted under the
-# router prefix so Apache's ``ProxyPass /ai_house_mother`` covers it
-# without an extra rule.
-app.mount(
-    "/ai_house_mother/static",
-    StaticFiles(directory=str(REPO_ROOT / "static")),
-    name="static",
-)
 
 # Importing router (and, transitively, handlers) registers @handler.add
 # decorators with the global WebhookHandler defined in src.config.
