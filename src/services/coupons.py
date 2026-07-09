@@ -61,6 +61,49 @@ def select_coupons_for_milestone(milestone: int) -> list[dict[str, Any]]:
     return [active[(start + i) % len(active)] for i in range(COUPONS_PER_BATCH)]
 
 
+def _append_distribution(
+    data: dict[str, Any],
+    user_id: str,
+    milestone: int,
+    coupons: list[dict[str, Any]],
+    now_jst: datetime | None,
+) -> None:
+    """Record an awarded batch to ``data`` and persist it.
+
+    Advances ``last_awarded_milestone`` and appends to ``distributions``
+    for ``user_id``, then writes ``coupon_distributions.json``. Shared by
+    :func:`award_if_due` and :func:`force_award_next` so both paths record
+    identically (docs/05 §4.16).
+
+    Args:
+        data: The loaded ``coupon_distributions.json`` mapping (mutated).
+        user_id: The student's LINE user id.
+        milestone: The milestone being awarded.
+        coupons: The coupon dicts handed out.
+        now_jst: Optional reference time (JST) for ``awarded_at``.
+    """
+    awarded_at = (now_jst or datetime.now(JST)).astimezone(JST).isoformat()
+    user_bucket = data.get(user_id, {})
+    distributions = user_bucket.get("distributions", [])
+    distributions.append(
+        {
+            "milestone": milestone,
+            "coupon_ids": [c.get("coupon_id") for c in coupons],
+            "awarded_at": awarded_at,
+        }
+    )
+    user_bucket["last_awarded_milestone"] = milestone
+    user_bucket["distributions"] = distributions
+    data[user_id] = user_bucket
+    save_json(_FILE, data)
+    logger.info(
+        "Coupons awarded: user=%s milestone=%d coupons=%s",
+        user_id[:8],
+        milestone,
+        [c.get("coupon_id") for c in coupons],
+    )
+
+
 def award_if_due(
     user_id: str, now_jst: datetime | None = None
 ) -> list[dict[str, Any]] | None:
@@ -102,23 +145,40 @@ def award_if_due(
         logger.warning("Coupon milestone %d reached but seed is empty", milestone)
         return None
 
-    awarded_at = (now_jst or datetime.now(JST)).astimezone(JST).isoformat()
-    distributions = user_bucket.get("distributions", [])
-    distributions.append(
-        {
-            "milestone": milestone,
-            "coupon_ids": [c.get("coupon_id") for c in coupons],
-            "awarded_at": awarded_at,
-        }
-    )
-    user_bucket["last_awarded_milestone"] = milestone
-    user_bucket["distributions"] = distributions
-    data[user_id] = user_bucket
-    save_json(_FILE, data)
-    logger.info(
-        "Coupons awarded: user=%s milestone=%d coupons=%s",
-        user_id[:8],
-        milestone,
-        [c.get("coupon_id") for c in coupons],
-    )
+    _append_distribution(data, user_id, milestone, coupons, now_jst)
+    return coupons
+
+
+def force_award_next(
+    user_id: str, now_jst: datetime | None = None
+) -> list[dict[str, Any]] | None:
+    """Award the next coupon batch regardless of post count (admin/demo).
+
+    Reads the user's ``last_awarded_milestone`` and awards the batch for
+    ``last + COUPONS_PER_BATCH``, recording it exactly like a natural
+    award. Unlike :func:`award_if_due` this ignores the post count, so a
+    demo can trigger distribution without posting three times. Because it
+    shares ``coupon_distributions.json`` and advances the milestone,
+    subsequent natural awards stay consistent (docs/08 シーン6 手動発火).
+
+    Args:
+        user_id: The student's LINE user id.
+        now_jst: Optional reference time (JST) for the ``awarded_at`` stamp.
+
+    Returns:
+        The awarded coupon dicts, or ``None`` when the seed has no active
+        coupons.
+    """
+    data = load_json(_FILE, default={})
+    if not isinstance(data, dict):
+        data = {}
+    last_awarded = int(data.get(user_id, {}).get("last_awarded_milestone", 0))
+    milestone = last_awarded + COUPONS_PER_BATCH
+
+    coupons = select_coupons_for_milestone(milestone)
+    if not coupons:
+        logger.warning("force_award_next: seed has no active coupons")
+        return None
+
+    _append_distribution(data, user_id, milestone, coupons, now_jst)
     return coupons
