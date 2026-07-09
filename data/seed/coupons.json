@@ -1,0 +1,94 @@
+{
+    "coupons": [
+        {
+            "coupon_id": "CPN001",
+            "store_name": "サンプル珈琲店（架空）",
+            "title": "ドリンク1杯無料",
+            "summary": "対象ドリンクいずれか1杯を無料でご提供します。勉強のおともにどうぞ。",
+            "discount": "ドリンク1杯無料",
+            "store_url": "https://example.com/coupon/coffee",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN002",
+            "store_name": "架空食堂 今出川店（架空）",
+            "title": "ランチ100円引き",
+            "summary": "日替わり定食を100円引きでご提供。学生証のご提示でさらにごはん大盛り無料。",
+            "discount": "ランチ100円引き",
+            "store_url": "https://example.com/coupon/shokudo",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN003",
+            "store_name": "テスト書房（架空）",
+            "title": "文具10%OFF",
+            "summary": "ノート・ペンなど文具全品を10%割引。新学期の買い足しに。",
+            "discount": "文具10%OFF",
+            "store_url": "https://example.com/coupon/books",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN004",
+            "store_name": "ダミーベーカリー（架空）",
+            "title": "パン1個プレゼント",
+            "summary": "500円以上のお買い上げで、お好きなパンを1個プレゼントします。",
+            "discount": "パン1個無料",
+            "store_url": "https://example.com/coupon/bakery",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN005",
+            "store_name": "例示ラーメン 相国寺前店（架空）",
+            "title": "替え玉無料",
+            "summary": "ラーメンご注文で替え玉1回無料。がっつり食べたい日に。",
+            "discount": "替え玉無料",
+            "store_url": "https://example.com/coupon/ramen",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN006",
+            "store_name": "モック古着店（架空）",
+            "title": "全品5%OFF",
+            "summary": "店内全品を5%割引。掘り出し物を探しに来てください。",
+            "discount": "全品5%OFF",
+            "store_url": "https://example.com/coupon/vintage",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN007",
+            "store_name": "サンプル定食屋（架空）",
+            "title": "みそ汁おかわり無料",
+            "summary": "定食ご注文でみそ汁おかわり無料。あたたかい一杯をどうぞ。",
+            "discount": "みそ汁おかわり無料",
+            "store_url": "https://example.com/coupon/teishoku",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN008",
+            "store_name": "テスト文房具カフェ（架空）",
+            "title": "席料30分無料",
+            "summary": "作業スペースの席料を30分無料に。レポート追い込みのおともに。",
+            "discount": "席料30分無料",
+            "store_url": "https://example.com/coupon/workcafe",
+            "valid_until": "2026-12-31",
+            "active": true
+        },
+        {
+            "coupon_id": "CPN009",
+            "store_name": "架空スイーツ店（架空）",
+            "title": "トッピング1つ無料",
+            "summary": "対象スイーツにお好きなトッピングを1つ無料でお付けします。",
+            "discount": "トッピング1つ無料",
+            "store_url": "https://example.com/coupon/sweets",
+            "valid_until": "2026-12-31",
+            "active": true
+        }
+    ]
+}

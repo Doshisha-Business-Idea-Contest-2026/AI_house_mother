@@ -25,6 +25,7 @@ from linebot.v3.webhooks import MessageEvent, PostbackEvent
 from src.services import (
     activity_store,
     context_search,
+    coupons,
     gemini,
     invitations,
     posts,
@@ -43,6 +44,7 @@ from src.services.line_reply import (
     show_loading,
 )
 from src.templates.flex.activity_carousel import build_activity_carousel
+from src.templates.flex.coupon_carousel import build_coupon_carousel
 from src.templates.flex.invitation_code import build_invitation_bubble
 from src.templates.flex.profile_view import build_profile_view_bubble
 from src.templates.quick_reply import (
@@ -1229,6 +1231,20 @@ def _finalize_post(event: PostbackEvent) -> None:
         record["post_id"],
         record["share_with_parent"],
     )
+
+    # FR-S10 (docs/04 §4.8): every third post awards a coupon batch. The
+    # carousel is pushed after the reply, following the existing carousel
+    # push convention. Awarding failures must never break the post flow.
+    try:
+        awarded = coupons.award_if_due(user_id)
+        if awarded:
+            push_flex(
+                user_id,
+                alt_text="🎫 クーポンが届きました",
+                contents=build_coupon_carousel(awarded),
+            )
+    except Exception:
+        logger.exception("coupon award failed; post itself is already saved")
 
 
 # ---------------------------------------------------------------------------
