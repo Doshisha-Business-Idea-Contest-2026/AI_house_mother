@@ -346,8 +346,10 @@ def build_post_finalize_prompt(
     """Prompt for ``gemini.finalize_post`` (FR-S6 / T4.15).
 
     Asks the model to (1) generate a concise title from the student's
-    structured post and (2) normalize the free-text period into an
-    absolute expression anchored on ``today``. See ``docs/06_ai_spec.md``
+    structured post, (2) normalize the free-text period into an absolute
+    expression anchored on ``today``, and (3) judge the post's validity
+    (``valid`` / ``reason``) so nonsensical / fabricated / lottery-farming
+    posts can be rejected without an extra call. See ``docs/06_ai_spec.md``
     §4.5.
 
     Args:
@@ -372,7 +374,8 @@ def build_post_finalize_prompt(
 
     return (
         SYSTEM_PROMPT_COMMON + "\n\n【今回の依頼】\n"
-        "学生の経験投稿から、(1) 40 文字以内の短いタイトル、(2) 期間表現の絶対化、を行ってください。\n\n"
+        "学生の経験投稿から、(1) 40 文字以内の短いタイトル、(2) 期間表現の絶対化、"
+        "(3) 投稿内容の妥当性判定、を行ってください。\n\n"
         f"【今日の日付】{today}（この日付を基準に相対表現を絶対表現へ変換する）\n\n"
         "【投稿内容】\n"
         f"- カテゴリ: {category}\n"
@@ -383,11 +386,18 @@ def build_post_finalize_prompt(
         f"- 次の人へ: {_or_none(advice)}\n"
         f"- 場所: {_or_none(area)}\n\n"
         "【出力ルール】\n"
-        '- 必ず JSON オブジェクトのみを返す: {"title": "...", "period": "..."}\n'
+        "- 必ず JSON オブジェクトのみを返す: "
+        '{"title": "...", "period": "...", "valid": true, "reason": "..."}\n'
         "- title: 内容を表す簡潔な見出し。40 文字以内。絵文字・記号での装飾はしない。\n"
         "- period: 期間（ユーザーの言葉）を今日の日付基準で絶対表現へ変換する"
         "（例: 「去年の10月」→「2025年10月」、「先週末」→「2026年7月上旬」）。\n"
         "  期間が（なし）のときは空文字にする。判断できない相対表現（「大学1年の頃」等）は"
         "無理に断定せず、元の表現に近い形で返す。\n"
+        "- valid: 投稿として妥当なら true、不正なら false（真偽値）。\n"
+        "  false にするのは次のいずれかが明白な場合のみ: 単一文字の連打やキーボード乱打・"
+        "意味をなさない文字列、荒唐無稽で明らかに虚偽の内容、中身の伴わない抽選/クーポン目的"
+        "と判断できる投稿。\n"
+        "  短くても内容が伴っていれば true。判断に迷う場合は必ず true（正当な投稿を弾かない）。\n"
+        "- reason: valid が false のときのみ、日本語で簡潔に理由を書く（true のときは空文字）。\n"
         "- 投稿内容以外の事実を創作しない。個人を特定する情報は書かない。"
     )

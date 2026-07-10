@@ -24,7 +24,7 @@ class _MockModeMixin:
 
 
 class TestFinalizePostFallback(_MockModeMixin):
-    def _call(self, **overrides: object) -> dict[str, str]:
+    def _call(self, **overrides: object) -> dict[str, object]:
         kwargs: dict = {
             "category": "volunteer",
             "summary": "下鴨神社の清掃に参加した",
@@ -51,8 +51,14 @@ class TestFinalizePostFallback(_MockModeMixin):
         result = self._call(period_raw=None)
         assert result["period"] == ""
 
-    def test_return_keys_are_exactly_title_and_period(self) -> None:
-        assert set(self._call().keys()) == {"title", "period"}
+    def test_return_keys_include_valid_and_reason(self) -> None:
+        assert set(self._call().keys()) == {"title", "period", "valid", "reason"}
+
+    def test_mock_mode_defaults_valid_true(self) -> None:
+        # Fallback / mock must never reject a post (docs/04 §4.5).
+        result = self._call()
+        assert result["valid"] is True
+        assert result["reason"] == ""
 
 
 class TestParseFinalizeJson:

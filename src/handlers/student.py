@@ -895,6 +895,15 @@ _POST_ENTRY_PROMPTS: dict[str, tuple[str, Any]] = {
     "post.area": (_POST_AREA_PROMPT, post_area_quick_reply),
 }
 
+# docs/04 §4.5: fixed warning shown when the finalize validity gate rejects
+# a post (``valid == false``). The post is NOT saved; this is a deterrent
+# only (no strike counter / auto-suspension — see docs/04 §4.9).
+_POST_INVALID_WARNING = (
+    "入力内容を投稿として保存できませんでした🙏\n"
+    "事実と異なる内容や、意味をなさない投稿が続くと、機能の利用を制限する場合があります。\n"
+    "次はぜひ、実際の体験を書いてみてくださいね。"
+)
+
 
 def start_post_flow(event: MessageEvent | PostbackEvent) -> None:
     """Kick off the experience posting dialog for a student (docs/04 §4.5)."""
@@ -1129,15 +1138,38 @@ def _build_post_confirmation_text(ctx: dict[str, Any]) -> str:
     )
 
 
+def _draw_and_push_prize(user_id: str) -> None:
+    """Draw one prize lottery for ``user_id`` and push the result Flex.
+
+    FR-S11 (docs/04 §4.9): shared by the normal finalize path and the
+    invalid-post path (rejected posts still get to draw). Awarding
+    failures must never break the caller, so everything is guarded.
+    """
+    try:
+        prize_result = prizes.draw(user_id)
+        if prize_result is not None:
+            push_flex(
+                user_id,
+                alt_text="🎁 くじ引きの結果",
+                contents=build_prize_result_bubble(prize_result),
+            )
+    except Exception:
+        logger.exception("prize draw failed")
+
+
 def _run_post_finalize(event: PostbackEvent) -> None:
-    """Run the LLM finalize call, then push the confirmation card.
+    """Run the LLM finalize call, then branch on the validity gate.
 
     Triggered right after the parent-share choice, when all fields are
     collected. Shows a Loading Indicator while ``gemini.finalize_post``
-    generates the title and normalizes the period, then stores both in
-    the session and pushes the review card (T4.15, docs/06 §4.5).
-    ``finalize_post`` never raises for API problems, but we still guard
-    defensively so the flow always reaches ``post.confirm``.
+    generates the title, normalizes the period, and judges validity
+    (T4.15, docs/06 §4.5). ``finalize_post`` never raises for API
+    problems, but we still guard defensively.
+
+    - ``valid`` → store title/period and push the review card
+      (``post.confirm``).
+    - invalid → do **not** save. Clear the session, send the fixed
+      warning, and still draw the prize lottery (docs/04 §4.5 / §4.9).
     """
     user_id = event.source.user_id
     ctx = _context_snapshot(user_id)
@@ -1146,6 +1178,11 @@ def _run_post_finalize(event: PostbackEvent) -> None:
     today = datetime.now(_JST).strftime("%Y-%m-%d")
     summary_text = ctx.get("summary", "")
     period_raw = ctx.get("period_raw")
+    # Default True so a finalize outage never blocks a legitimate post; the
+    # invalid branch is only reachable when the model explicitly rejected
+    # the post (docs/04 §4.5).
+    valid = True
+    reason = ""
     try:
         result = gemini.finalize_post(
             category=ctx.get("category", "other"),
@@ -1159,10 +1196,25 @@ def _run_post_finalize(event: PostbackEvent) -> None:
         )
         title = result["title"]
         period = result["period"]
+        valid = result.get("valid", True) is not False
+        reason = str(result.get("reason", ""))
     except Exception:
         logger.exception("finalize_post failed; using fallback")
         title = (summary_text or "").strip()[: posts.MAX_TITLE_LEN]
         period = (period_raw or "").strip()
+
+    if not valid:
+        logger.info("post_rejected user=%s reason=%s", user_id[:8], reason[:80])
+        session.clear_state(user_id)
+        reply_text(
+            event.reply_token,
+            _POST_INVALID_WARNING,
+            quick_reply=main_menu_quick_reply("student"),
+        )
+        # docs/04 §4.9: rejected posts are not saved but still draw the
+        # lottery so the demo experience is not interrupted.
+        _draw_and_push_prize(user_id)
+        return
 
     _record(user_id, "title", title)
     _record(user_id, "period", period)
@@ -1250,16 +1302,7 @@ def _finalize_post(event: PostbackEvent) -> None:
 
     # FR-S11 (docs/04 §4.9): draw the lottery once per completed post and
     # push the win/miss result. Failures must never break the post flow.
-    try:
-        prize_result = prizes.draw(user_id)
-        if prize_result is not None:
-            push_flex(
-                user_id,
-                alt_text="🎁 くじ引きの結果",
-                contents=build_prize_result_bubble(prize_result),
-            )
-    except Exception:
-        logger.exception("prize draw failed; post itself is already saved")
+    _draw_and_push_prize(user_id)
 
 
 # ---------------------------------------------------------------------------

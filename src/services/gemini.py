@@ -68,8 +68,10 @@ _POST_FINALIZE_JSON_SCHEMA = {
     "properties": {
         "title": {"type": "string"},
         "period": {"type": "string"},
+        "valid": {"type": "boolean"},
+        "reason": {"type": "string"},
     },
-    "required": ["title", "period"],
+    "required": ["title", "period", "valid"],
 }
 
 # Snappy budget for the finalize call: it runs inline before the
@@ -392,16 +394,20 @@ def finalize_post(
     period_raw: str | None,
     *,
     today: str,
-) -> dict[str, str]:
-    """Generate a title and normalize the period for an experience post.
+) -> dict[str, Any]:
+    """Generate a title, normalize the period, and validate the post.
 
     Runs a single JSON-mode Gemini call (FR-S6 / T4.15, docs/06 §4.5) to
-    (1) produce a concise title from the post content and (2) rewrite the
+    (1) produce a concise title from the post content, (2) rewrite the
     free-text ``period_raw`` into an absolute expression anchored on
-    ``today``. Always returns a usable dict: on ``GEMINI_MOCK_MODE``,
-    failure, empty response, or malformed JSON it falls back to
-    ``title = summary[:MAX_TITLE_LEN]`` and ``period = period_raw``, so
-    the post flow never blocks.
+    ``today``, and (3) judge whether the post is valid (``valid``). The
+    validity gate rejects nonsensical / fabricated / lottery-farming posts
+    without spending an extra LLM call (docs/04 §4.5). Always returns a
+    usable dict: on ``GEMINI_MOCK_MODE``, failure, empty response, or
+    malformed JSON it falls back to ``title = summary[:MAX_TITLE_LEN]``,
+    ``period = period_raw`` and ``valid = True`` (never block on an
+    outage), so the post flow never blocks and false rejections are
+    avoided.
 
     Args:
         category: Post category value.
@@ -414,16 +420,22 @@ def finalize_post(
         today: Reference date ``"YYYY-MM-DD"`` (JST) for relative periods.
 
     Returns:
-        ``{"title": str, "period": str}`` with the title capped at
-        :data:`posts.MAX_TITLE_LEN` and the period at
-        :data:`posts.MAX_PERIOD_LEN`.
+        ``{"title": str, "period": str, "valid": bool, "reason": str}``
+        with the title capped at :data:`posts.MAX_TITLE_LEN` and the
+        period at :data:`posts.MAX_PERIOD_LEN`. ``valid`` defaults to
+        ``True`` when missing/non-boolean or on any fallback.
     """
     fallback_title = (summary or "").strip()[: posts.MAX_TITLE_LEN]
     fallback_period = (period_raw or "").strip()
 
     if GEMINI_MOCK_MODE:
         logger.info("[GEMINI_MOCK] finalize_post returning fallback")
-        return {"title": fallback_title, "period": fallback_period}
+        return {
+            "title": fallback_title,
+            "period": fallback_period,
+            "valid": True,
+            "reason": "",
+        }
 
     prompt = prompts.build_post_finalize_prompt(
         category=category,
@@ -443,7 +455,7 @@ def finalize_post(
             prompt,
             generation_config={
                 "temperature": 0.3,
-                "max_output_tokens": 120,
+                "max_output_tokens": 160,
                 "response_mime_type": "application/json",
                 "response_schema": _POST_FINALIZE_JSON_SCHEMA,
             },
@@ -463,7 +475,13 @@ def finalize_post(
         # Empty from the model: keep the user's own words rather than
         # dropping the period entirely (only truly-blank input stays "").
         period = fallback_period
-    return {"title": title, "period": period}
+    # ``valid`` gates whether the post is saved (docs/04 §4.5). Default to
+    # True unless the model explicitly returned boolean ``False`` so a
+    # missing/malformed field never blocks a legitimate post.
+    valid = parsed.get("valid")
+    valid_bool = valid if isinstance(valid, bool) else True
+    reason = str(parsed.get("reason") or "").strip()
+    return {"title": title, "period": period, "valid": valid_bool, "reason": reason}
 
 
 # ---------------------------------------------------------------------------
