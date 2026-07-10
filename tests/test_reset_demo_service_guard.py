@@ -35,9 +35,7 @@ class TestServiceIsRunning:
 
     def test_returns_true_when_returncode_zero(self) -> None:
         with (
-            patch.object(
-                reset_demo.shutil, "which", return_value="/bin/systemctl"
-            ),
+            patch.object(reset_demo.shutil, "which", return_value="/bin/systemctl"),
             patch.object(reset_demo.subprocess, "run") as run_mock,
         ):
             run_mock.return_value = SimpleNamespace(returncode=0)
@@ -60,9 +58,7 @@ class TestServiceIsRunning:
 
     def test_returns_false_when_returncode_nonzero(self) -> None:
         with (
-            patch.object(
-                reset_demo.shutil, "which", return_value="/bin/systemctl"
-            ),
+            patch.object(reset_demo.shutil, "which", return_value="/bin/systemctl"),
             patch.object(reset_demo.subprocess, "run") as run_mock,
         ):
             run_mock.return_value = SimpleNamespace(returncode=3)
@@ -78,12 +74,8 @@ class TestServiceIsRunning:
         ]
         for exc in cases:
             with (
-                patch.object(
-                    reset_demo.shutil, "which", return_value="/bin/systemctl"
-                ),
-                patch.object(
-                    reset_demo.subprocess, "run", side_effect=exc
-                ),
+                patch.object(reset_demo.shutil, "which", return_value="/bin/systemctl"),
+                patch.object(reset_demo.subprocess, "run", side_effect=exc),
             ):
                 assert reset_demo._service_is_running() is False
 
@@ -112,9 +104,7 @@ class TestMainAbortsWhenServiceActive:
 
     def test_active_service_aborts_with_return_code_2(self) -> None:
         with (
-            patch.object(
-                reset_demo, "_service_is_running", return_value=True
-            ),
+            patch.object(reset_demo, "_service_is_running", return_value=True),
             patch("builtins.open") as open_mock,
             redirect_stdout(io.StringIO()) as stdout,
         ):
@@ -133,9 +123,7 @@ class TestMainAbortsWhenServiceActive:
         """The escape hatch must actually let the reset proceed. We stop
         just before the file writes by patching the target loop."""
         with (
-            patch.object(
-                reset_demo, "_service_is_running", return_value=True
-            ),
+            patch.object(reset_demo, "_service_is_running", return_value=True),
             patch("builtins.open") as open_mock,
             redirect_stdout(io.StringIO()) as stdout,
         ):
