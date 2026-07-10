@@ -45,8 +45,11 @@ class TestParticipatedEntersPostWizard:
 
             session_mock.set_state.assert_not_called()
             reply_mock.assert_called_once()
-            args, _ = reply_mock.call_args
+            args, kwargs = reply_mock.call_args
             assert "復元できませんでした" in args[1]
+            # docs/04 §3.4: even error terminal replies must carry a QR
+            # so a tap on a stale card doesn't strand the student.
+            assert kwargs.get("quick_reply") is not None
 
     def test_participated_sets_post_category_state_with_source_meta(self) -> None:
         from src.handlers import student as student_mod
@@ -102,6 +105,41 @@ class TestParticipatedEntersPostWizard:
             args, _ = reply_mock.call_args
             assert "河原町 UNIQLO 手伝い" in args[1]
             assert "カテゴリを選んで" in args[1]
+
+    def test_participated_survives_missing_or_blank_title(self) -> None:
+        """activity_store may return an entry whose ``title`` was dropped
+        or came back as whitespace. The reply must degrade gracefully —
+        never render literally as「「」への参加を記録します」— and the
+        session must still transition to ``post.category``."""
+        from src.handlers import student as student_mod
+
+        cases: list[dict[str, object]] = [
+            {"title": None},
+            {"title": ""},
+            {"title": "   "},
+            {"summary": "no title key"},
+        ]
+        for activity in cases:
+            with (
+                patch.object(student_mod.activity_store, "resolve") as resolve_mock,
+                patch.object(student_mod, "session") as session_mock,
+                patch.object(student_mod, "reply_text") as reply_mock,
+                patch.object(student_mod, "post_category_quick_reply"),
+            ):
+                resolve_mock.return_value = activity
+
+                student_mod.handle_activity_participated(_postback_event(), "k")
+
+                session_mock.set_state.assert_called_once()
+                args, kwargs = session_mock.set_state.call_args
+                assert args[1] == "post.category"
+                # Empty-string title lands in the source meta rather
+                # than None so the confirmation renderer's `or ""`
+                # branch keeps working end-to-end.
+                assert kwargs["source_activity_title"] == ""
+                reply_mock.assert_called_once()
+                reply_args, _ = reply_mock.call_args
+                assert "「」への参加" not in reply_args[1]
 
 
 class TestPostConfirmationTextShowsSourceActivity:
