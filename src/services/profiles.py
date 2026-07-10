@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -38,24 +38,26 @@ def save_profile(line_user_id: str, profile: dict[str, Any]) -> None:
         profile: Profile fields such as ``university``, ``faculty``,
             ``grade``, ``interests``, ``recent_effort``, ``want_to_do``.
     """
-    data = load_json(_FILE, default=_EMPTY)
     now = datetime.now(JST).isoformat()
-    existing = data["profiles"].get(line_user_id, {})
-    merged = {
-        "line_user_id": line_user_id,
-        "created_at": existing.get("created_at", now),
-        "updated_at": now,
-    }
-    merged.update(profile)
-    data["profiles"][line_user_id] = merged
-    save_json(_FILE, data)
+    # Atomic profile upsert so a re-registration race cannot drop
+    # created_at (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        data.setdefault("profiles", {})
+        existing = data["profiles"].get(line_user_id, {})
+        merged = {
+            "line_user_id": line_user_id,
+            "created_at": existing.get("created_at", now),
+            "updated_at": now,
+        }
+        merged.update(profile)
+        data["profiles"][line_user_id] = merged
 
 
 def delete_profile(line_user_id: str) -> bool:
     """Remove the profile record. Returns ``True`` if a record was deleted."""
-    data = load_json(_FILE, default=_EMPTY)
-    if line_user_id not in data["profiles"]:
-        return False
-    del data["profiles"][line_user_id]
-    save_json(_FILE, data)
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        data.setdefault("profiles", {})
+        if line_user_id not in data["profiles"]:
+            return False
+        del data["profiles"][line_user_id]
     return True

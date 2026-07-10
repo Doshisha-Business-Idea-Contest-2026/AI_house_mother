@@ -15,7 +15,7 @@ import logging
 import time
 from typing import Any
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -48,20 +48,23 @@ def _prune(data: dict[str, Any]) -> None:
 
 def remember(user_id: str, activities: list[dict[str, Any]]) -> list[str]:
     """Persist activities under short keys and return the list of keys."""
-    data = _load()
-    _prune(data)
+    # Prune + insert under a single lock so two concurrent proposal
+    # carousels cannot lose one side's entries (docs/05 §3.1, Issue #45).
     keys: list[str] = []
     now = time.time()
-    for activity in activities:
-        title = str(activity.get("title") or "activity")
-        key = make_key(title)
-        data["activities"][key] = {
-            "user_id": user_id,
-            "activity": activity,
-            "_written_at": now,
-        }
-        keys.append(key)
-    save_json(_FILE, data)
+    with locked_edit(_FILE, default={"activities": {}}) as data:
+        if "activities" not in data:
+            data["activities"] = {}
+        _prune(data)
+        for activity in activities:
+            title = str(activity.get("title") or "activity")
+            key = make_key(title)
+            data["activities"][key] = {
+                "user_id": user_id,
+                "activity": activity,
+                "_written_at": now,
+            }
+            keys.append(key)
     return keys
 
 

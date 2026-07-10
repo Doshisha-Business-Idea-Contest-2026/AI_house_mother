@@ -20,7 +20,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from src.services import posts, seed
-from src.services.storage import load_json, save_json
+from src.services.storage import locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +68,14 @@ def _append_distribution(
     coupons: list[dict[str, Any]],
     now_jst: datetime | None,
 ) -> None:
-    """Record an awarded batch to ``data`` and persist it.
+    """Record an awarded batch into ``data``.
 
-    Advances ``last_awarded_milestone`` and appends to ``distributions``
-    for ``user_id``, then writes ``coupon_distributions.json``. Shared by
-    :func:`award_if_due` and :func:`force_award_next` so both paths record
-    identically (docs/05 §4.16).
-
-    Args:
-        data: The loaded ``coupon_distributions.json`` mapping (mutated).
-        user_id: The student's LINE user id.
-        milestone: The milestone being awarded.
-        coupons: The coupon dicts handed out.
-        now_jst: Optional reference time (JST) for ``awarded_at``.
+    Mutates the mapping in place (advances ``last_awarded_milestone`` and
+    appends to ``distributions``) but **does not** persist it — the
+    caller must be inside a :func:`storage.locked_edit` block, and the
+    context manager writes on exit. This lets ``award_if_due`` and
+    ``force_award_next`` share the record shape while keeping the read →
+    modify → write cycle atomic (docs/05 §3.1 / §4.16).
     """
     awarded_at = (now_jst or datetime.now(JST)).astimezone(JST).isoformat()
     user_bucket = data.get(user_id, {})
@@ -95,7 +90,6 @@ def _append_distribution(
     user_bucket["last_awarded_milestone"] = milestone
     user_bucket["distributions"] = distributions
     data[user_id] = user_bucket
-    save_json(_FILE, data)
     logger.info(
         "Coupons awarded: user=%s milestone=%d coupons=%s",
         user_id[:8],
@@ -132,20 +126,22 @@ def award_if_due(
     if milestone < COUPONS_PER_BATCH:
         return None
 
-    data = load_json(_FILE, default={})
-    if not isinstance(data, dict):
-        data = {}
-    user_bucket = data.get(user_id, {})
-    last_awarded = int(user_bucket.get("last_awarded_milestone", 0))
-    if milestone <= last_awarded:
-        return None
-
     coupons = select_coupons_for_milestone(milestone)
     if not coupons:
         logger.warning("Coupon milestone %d reached but seed is empty", milestone)
         return None
 
-    _append_distribution(data, user_id, milestone, coupons, now_jst)
+    with locked_edit(_FILE, default={}) as data:
+        if not isinstance(data, dict):
+            data = {}
+        user_bucket = data.get(user_id, {})
+        last_awarded = int(user_bucket.get("last_awarded_milestone", 0))
+        if milestone <= last_awarded:
+            # Another writer awarded the same milestone while we waited
+            # on the lock. Return None so the caller does not push the
+            # coupons a second time (Issue #45 duplicate-award race).
+            return None
+        _append_distribution(data, user_id, milestone, coupons, now_jst)
     return coupons
 
 
@@ -169,16 +165,16 @@ def force_award_next(
         The awarded coupon dicts, or ``None`` when the seed has no active
         coupons.
     """
-    data = load_json(_FILE, default={})
-    if not isinstance(data, dict):
-        data = {}
-    last_awarded = int(data.get(user_id, {}).get("last_awarded_milestone", 0))
-    milestone = last_awarded + COUPONS_PER_BATCH
+    with locked_edit(_FILE, default={}) as data:
+        if not isinstance(data, dict):
+            data = {}
+        last_awarded = int(data.get(user_id, {}).get("last_awarded_milestone", 0))
+        milestone = last_awarded + COUPONS_PER_BATCH
 
-    coupons = select_coupons_for_milestone(milestone)
-    if not coupons:
-        logger.warning("force_award_next: seed has no active coupons")
-        return None
+        coupons = select_coupons_for_milestone(milestone)
+        if not coupons:
+            logger.warning("force_award_next: seed has no active coupons")
+            return None
 
-    _append_distribution(data, user_id, milestone, coupons, now_jst)
+        _append_distribution(data, user_id, milestone, coupons, now_jst)
     return coupons

@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -119,32 +119,37 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
     Returns:
         The new invitation record dict.
     """
-    data = _load()
     now = _now_jst()
     now_iso = _iso(now)
 
-    revoked = 0
-    for inv in data["invitations"]:
-        if (
-            inv["student_user_id"] == student_user_id
-            and inv["used_at"] is None
-            and not is_expired(inv["expires_at"])
-        ):
-            inv["used_at"] = now_iso
-            inv["used_by_parent_id"] = REVOKED_SENTINEL
-            revoked += 1
+    # Revoke-then-issue under a single lock so two rapid re-issues from
+    # the same student cannot leave two active codes (docs/05 §3.1,
+    # Issue #45).
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        if "invitations" not in data:
+            data["invitations"] = []
 
-    code = _generate_unique_code(data["invitations"])
-    record: dict[str, Any] = {
-        "code": code,
-        "student_user_id": student_user_id,
-        "created_at": now_iso,
-        "expires_at": _iso(now + timedelta(hours=TTL_HOURS)),
-        "used_at": None,
-        "used_by_parent_id": None,
-    }
-    data["invitations"].append(record)
-    save_json(_FILE, data)
+        revoked = 0
+        for inv in data["invitations"]:
+            if (
+                inv["student_user_id"] == student_user_id
+                and inv["used_at"] is None
+                and not is_expired(inv["expires_at"])
+            ):
+                inv["used_at"] = now_iso
+                inv["used_by_parent_id"] = REVOKED_SENTINEL
+                revoked += 1
+
+        code = _generate_unique_code(data["invitations"])
+        record: dict[str, Any] = {
+            "code": code,
+            "student_user_id": student_user_id,
+            "created_at": now_iso,
+            "expires_at": _iso(now + timedelta(hours=TTL_HOURS)),
+            "used_at": None,
+            "used_by_parent_id": None,
+        }
+        data["invitations"].append(record)
     logger.info("Issued invitation code (revoked=%d, ttl_hours=%d)", revoked, TTL_HOURS)
     return record
 
@@ -161,23 +166,27 @@ def consume(code: str, parent_user_id: str) -> tuple[str | None, str]:
         of ``"ok"``, ``"not_found"``, ``"expired"``, ``"used"``,
         ``"self_link"``. ``student_user_id`` is ``None`` on any error.
     """
-    data = _load()
-    target: dict[str, Any] | None = None
-    for inv in data["invitations"]:
-        if inv["code"] == code:
-            target = inv
-            break
+    # Check-and-mark under a single lock so two parents entering the
+    # same code cannot both succeed (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        if "invitations" not in data:
+            data["invitations"] = []
+        target: dict[str, Any] | None = None
+        for inv in data["invitations"]:
+            if inv["code"] == code:
+                target = inv
+                break
 
-    if target is None:
-        return None, "not_found"
-    if target["used_at"] is not None:
-        return None, "used"
-    if is_expired(target["expires_at"]):
-        return None, "expired"
-    if target["student_user_id"] == parent_user_id:
-        return None, "self_link"
+        if target is None:
+            return None, "not_found"
+        if target["used_at"] is not None:
+            return None, "used"
+        if is_expired(target["expires_at"]):
+            return None, "expired"
+        if target["student_user_id"] == parent_user_id:
+            return None, "self_link"
 
-    target["used_at"] = _iso(_now_jst())
-    target["used_by_parent_id"] = parent_user_id
-    save_json(_FILE, data)
-    return target["student_user_id"], "ok"
+        target["used_at"] = _iso(_now_jst())
+        target["used_by_parent_id"] = parent_user_id
+        student_user_id = target["student_user_id"]
+    return student_user_id, "ok"
