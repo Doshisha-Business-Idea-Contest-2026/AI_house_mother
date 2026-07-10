@@ -641,3 +641,5 @@ MVP 期間は最低限のログでよい。
 | 2026-07-10 | §4.2 生活相談の回答書式を絵文字リッチ化: 共感・締めに絵文字を添え、箇条書きを「・」から内容に合った行頭絵文字（🏥🗣️💊 等）のアンカーに変更（親しみやすさ強化の docs-first） | kmch4n |
 | 2026-07-10 | §4.2 `answer` を「💡 AI からのアドバイス」と「🗣️ 先輩の体験から」の見出し付き 2 セクション構成に変更（先輩の体験は先輩投稿・学生投稿が存在するときだけ表示） | kmch4n |
 | 2026-07-10 | §4.2 / §5.3.6 生活相談の応答を最大 3 吹き出しの分割から**単一テキストメッセージ**へ戻す。絵文字リッチ化で 1 メッセージ内でも可読性・温かみが確保できたため（分割は不要と判断） | kmch4n |
+| 2026-07-10 | §2.4 タイムアウトを 4 段（`DEFAULT_TIMEOUT_S=15s` / `_PROPOSE_TIMEOUT_S=20s` / `_BATCH_TIMEOUT_S=30s` / `_FINALIZE_TIMEOUT_S=8s`）に再定義し、§6.1 / §6.3 / §8.1 の 5 秒待って 1 回リトライ方針を撤去、`ResourceExhausted` / `DeadlineExceeded` / `Exception` は即フォールバック（`[GEMINI_FALLBACK]` プレフィクスでログ）に変更（PR #83、LINE Webhook 30 秒制約再固定の docs-first） | kmch4n |
+| 2026-07-10 | §4.4 `summarize_month` を Pull / Push で timeout 切替: 保護者「📊 今月のレポート」（Webhook 同期）は `interactive=True` で `DEFAULT_TIMEOUT_S=15s`、systemd timer 経路は既定の `_BATCH_TIMEOUT_S=30s`。§2.4 timeout 表にも Pull / Push 分離行を追記（PR #86、監査 A-1 対応の docs-first） | kmch4n |
