@@ -53,10 +53,10 @@ RESTART_COMMANDS = {"はじめる", "始める", "スタート", "/start"}
 PROFILE_COMMANDS = {"プロフィール", "プロフ"}
 PROFILE_START_COMMANDS = {"✍️ プロフィールを登録", "プロフィール登録"}
 WANT_TO_DO_COMMANDS = {"やりたい", "おすすめ", "🎯 やりたいこと相談"}
-LIFE_COMMANDS = {"生活相談", "💬 生活相談", "相談"}
+LIFE_COMMANDS = {"生活相談", "💬 生活相談"}
 ROLE_SWITCH_COMMANDS = {"役割変更", "切り替え", "きりかえ"}
-POST_COMMANDS = {"投稿", "経験", "✏️ 経験を投稿"}
-INVITE_COMMANDS = {"招待", "コード", "\U0001f468‍\U0001f469‍\U0001f467 保護者連携"}
+POST_COMMANDS = {"投稿", "✏️ 経験を投稿"}
+INVITE_COMMANDS = {"招待", "\U0001f468‍\U0001f469‍\U0001f467 保護者連携"}
 LINK_COMMANDS = {"連携", "🔗 学生と連携"}
 MONTHLY_COMMANDS = {"レポート", "頑張ったこと", "📊 今月のレポート"}
 

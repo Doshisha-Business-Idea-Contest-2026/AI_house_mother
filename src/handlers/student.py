@@ -431,6 +431,8 @@ def start_want_to_do_menu(event: MessageEvent | PostbackEvent) -> None:
     students' efforts vs local events) via Quick Reply, and only the
     chosen branch invokes Gemini.
     """
+    user_id = event.source.user_id
+    session.clear_state(user_id)
     if _require_profile_or_prompt(event) is None:
         return
     reply_text(
@@ -455,7 +457,6 @@ def _send_activity_carousel(
     their postbacks resolve via ``sponsor_id`` directly.
     """
     keys = activity_store.remember(user_id, activities)
-    session.set_state(user_id, "activity.viewing", activity_keys=keys)
 
     match = sponsored.match_for_profile(profile)
     flex = build_activity_carousel(activities, keys, sponsored=match)
@@ -469,11 +470,12 @@ def _send_activity_carousel(
 
 def handle_want_events(event: MessageEvent | PostbackEvent) -> None:
     """Want-to-do branch A: propose local events/activities (FR-S4)."""
+    user_id = event.source.user_id
+    session.clear_state(user_id)
     profile = _require_profile_or_prompt(event)
     if profile is None:
         return
 
-    user_id = event.source.user_id
     usage_stats.record(user_id, "activity")
     # Show the LINE loading indicator so the user sees a native
     # "typing" animation while we wait for Gemini. reply_token is
@@ -509,11 +511,12 @@ def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
     Even with zero runtime posts, Gemini/the seed fallback still returns
     proposals, so an empty result only happens on a hard failure.
     """
+    user_id = event.source.user_id
+    session.clear_state(user_id)
     profile = _require_profile_or_prompt(event)
     if profile is None:
         return
 
-    user_id = event.source.user_id
     usage_stats.record(user_id, "activity")
     show_loading(user_id)
 
@@ -542,7 +545,7 @@ def handle_want_students(event: MessageEvent | PostbackEvent) -> None:
 def handle_activity_detail(event: PostbackEvent, key: str) -> None:
     """Handle the "詳しく聞く" button for an activity carousel item."""
     user_id = event.source.user_id
-    activity = activity_store.resolve(key)
+    activity = activity_store.resolve(key, user_id)
     if activity is None:
         reply_text(
             event.reply_token,
@@ -577,7 +580,7 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
     which recommendation this record came from before pressing send.
     """
     user_id = event.source.user_id
-    activity = activity_store.resolve(key)
+    activity = activity_store.resolve(key, user_id)
     if activity is None:
         reply_text(
             event.reply_token,
@@ -739,12 +742,21 @@ def handle_life_consultation(event: MessageEvent) -> None:
         )
         return
 
+    profile = profiles.get_profile(user_id)
+    if profile is None:
+        session.clear_state(user_id)
+        reply_text(
+            event.reply_token,
+            "まずは 👤 プロフィール登録をお願いします。\n生活相談も、プロフィールがあるとよりあなたに合った案内ができます。",
+            quick_reply=profile_start_quick_reply(),
+        )
+        return
+
     usage_stats.record(user_id, "life")
     # docs/04 §3.6: show the native loading indicator while we search and
     # call Gemini; the Gemini response goes out below as a push.
     show_loading(user_id)
 
-    profile = profiles.get_profile(user_id)
     result = context_search.find_relevant_context(text)
     zero_context = context_search.should_add_disclaimer(result)
     medical_intent = context_search.detect_medical_intent(text)

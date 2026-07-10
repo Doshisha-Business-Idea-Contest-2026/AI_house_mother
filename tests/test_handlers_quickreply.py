@@ -184,3 +184,22 @@ class TestProfileConfirmYesReTapAttachesQuickReply:
             # student is mid-flow and losing their profile.grade context
             # would strand them. Pins #93 (audit L2).
             session_mock.clear_state.assert_not_called()
+
+
+class TestShortGenericWordsDoNotOverrideSession:
+    def test_soudan_is_treated_as_profile_text_inside_profile_flow(self) -> None:
+        from src.handlers import message as message_mod
+
+        event = _message_event("Ustudent-generic-001")
+        event.message.text = "相談"
+        state = {"state": "profile.faculty", "context": {}}
+
+        with (
+            patch.object(message_mod.session, "get_state", return_value=state),
+            patch.object(message_mod.student, "handle_profile_text") as profile_mock,
+            patch.object(message_mod.student, "handle_life_consultation") as life_mock,
+        ):
+            message_mod.handle_text(event)
+
+            profile_mock.assert_called_once_with(event, state)
+            life_mock.assert_not_called()
