@@ -118,3 +118,12 @@ class TestBuildLifeConsultationPrompt:
     def test_zero_context_line_included_when_no_hits(self) -> None:
         text = self._build(total_hits=0)
         assert "total_hits が 0" in text
+
+    def test_json_output_fields_instructed(self) -> None:
+        # docs/06 §4.2: the prompt must request a JSON object with the
+        # empathy / answer / closing keys so the handler can split bubbles.
+        text = self._build()
+        assert "JSON" in text
+        assert '"empathy"' in text
+        assert '"answer"' in text
+        assert '"closing"' in text

@@ -268,27 +268,43 @@ def propose_from_student_efforts(
     return activities[:3]
 
 
+_LIFE_ANSWER_FALLBACK = (
+    "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください。"
+)
+
+
 def answer_life_question(
     profile: dict[str, Any] | None,
     user_message: str,
     context_hits: dict[str, Any],
     *,
     total_hits: int,
-) -> str:
-    """Return a Gemini-generated answer for a life-consultation question.
+) -> dict[str, str]:
+    """Return a structured life-consultation answer for the handler.
+
+    The reply is split into three named parts so the handler can render
+    them as separate LINE bubbles (see docs/06_ai_spec.md §4.2 and
+    docs/04 §4.4):
+
+    - ``empathy``: a short acknowledgement. Empty for purely factual asks.
+    - ``answer``: the substantive body (conclusion first, then bullets).
+    - ``closing``: a caring wrap-up / guidance line. May be empty.
 
     ``total_hits`` must be the aggregate seed hit count from
     :func:`context_search.find_relevant_context`. When it is 0 the prompt
     forbids Gemini from inventing concrete facts. The Zero-context
-    disclaimer and medical followup are prepended / appended by the
-    handler layer (``handlers/student.py``) — this function only produces
-    the Gemini body.
+    disclaimer and medical followup are added by the handler layer
+    (``handlers/student.py``) — this function only produces the Gemini body.
     """
     if GEMINI_MOCK_MODE:
-        return (
-            "（mock 応答）先輩の体験や地域情報を踏まえた回答をここに表示します。"
-            f"\nあなたの質問: {user_message[:80]}"
-        )
+        return {
+            "empathy": "なるほど、気になりますよね。",
+            "answer": (
+                "（mock 応答）先輩の体験や地域情報を踏まえた回答をここに表示します。"
+                f"\nあなたの質問: {user_message[:80]}"
+            ),
+            "closing": "気になることがあれば、また気軽に聞いてくださいね。",
+        }
 
     prompt = prompts.build_life_consultation_prompt(
         profile=profile,
@@ -299,14 +315,31 @@ def answer_life_question(
         student_posts=context_hits.get("student_posts", []),
         total_hits=total_hits,
     )
-    answer = call_gemini(
-        prompt, temperature=0.5, max_output_tokens=500, timeout=DEFAULT_TIMEOUT_S
-    )
-    if not answer:
-        return (
-            "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください。"
+
+    parsed: dict[str, Any] = {}
+    try:
+        cl = _build_client()
+        response = cl.generate_content(
+            prompt,
+            generation_config={
+                "temperature": 0.5,
+                "max_output_tokens": 500,
+                "response_mime_type": "application/json",
+            },
+            request_options={"timeout": DEFAULT_TIMEOUT_S},
         )
-    return answer
+        parsed = _parse_life_json((response.text or "").strip())
+    except gexc.ResourceExhausted:
+        logger.warning("[GEMINI_FALLBACK] rate limit on answer_life_question")
+    except gexc.DeadlineExceeded:
+        logger.warning("[GEMINI_FALLBACK] timeout on answer_life_question")
+    except Exception:
+        logger.exception("[GEMINI_FALLBACK] answer_life_question failed")
+
+    empathy = str(parsed.get("empathy") or "").strip()
+    answer = str(parsed.get("answer") or "").strip() or _LIFE_ANSWER_FALLBACK
+    closing = str(parsed.get("closing") or "").strip()
+    return {"empathy": empathy, "answer": answer, "closing": closing}
 
 
 def answer_activity_detail(
@@ -538,6 +571,29 @@ def _parse_finalize_json(raw: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         logger.warning(
             "[GEMINI_FALLBACK] finalize JSON top-level not an object: %s", type(parsed)
+        )
+        return {}
+    return parsed
+
+
+def _parse_life_json(raw: str) -> dict[str, Any]:
+    """Parse the JSON object returned by the life-consultation call.
+
+    Returns an empty dict on any problem (empty string, malformed JSON, or
+    a non-object top level) so :func:`answer_life_question` applies its
+    fallback. Only the string fields ``empathy`` / ``answer`` / ``closing``
+    are meaningful to the caller.
+    """
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("[GEMINI_FALLBACK] life JSON parse failed: %s", raw[:200])
+        return {}
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "[GEMINI_FALLBACK] life JSON top-level not an object: %s", type(parsed)
         )
         return {}
     return parsed
