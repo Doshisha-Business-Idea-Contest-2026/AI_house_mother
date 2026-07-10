@@ -118,6 +118,10 @@
 - 対話フロー中の「次の入力を促す応答」（例: 「大学名を教えてください」）は、free-form テキスト入力を期待するため main menu QR を付けない代わりに、キャンセル可能な案内文を含める
 - 中間メッセージ（Gemini 呼び出し中の「考え中…」など）は、直後に本応答が続くため QR 不要
 
+**役割不一致（wrong-role）応答の Quick Reply**:
+
+学生専用コマンドを保護者が送った場合（またはその逆）は、`postback._reply_wrong_role` / `message._require_role` のパターンで**相手ロールではなく caller 自身の役割の main menu QR** を返す。誤タップからの復帰導線を切らないための救済で、上表の「ユーザーが役割登録済み」行に準じる。
+
 **実装上の指針**:
 
 - ヘルパー関数 `_reply_placeholder(event, user_id, text)` を `src/handlers/message.py` に用意し、複数箇所の重複を減らす
@@ -661,8 +665,9 @@ MVP では学生プロフィールに `display_name` が無いため、`link.ver
 | `expired` | `expires_at` 過去 | 「そのコードは有効期限が切れています。学生さんに新しいコードを発行してもらってください。」 |
 | `used` | `used_at` 既値（別保護者に使用済み or `__revoked__`） | 「そのコードは既に使われています。学生さんに新しいコードを発行してもらってください。」 |
 | `self_link` | 発行学生と入力保護者が同一 LINE userId | 「ご自身が発行したコードは使用できません。別の LINE アカウントで保護者役として登録してください。」 |
+| `invalid_format` | 正規化後（§4.6「保護者側の入力正規化」参照）の文字列が 6 桁でない、または `CODE_ALPHABET` 外の文字を含む | 「コードの形式が正しくありません。半角英数字 6 桁で入力してください（`I` `O` `0` `1` は含みません）。」 |
 
-上記いずれの場合も `session.increment_fail_count()` で失敗回数をインクリメントする。**5 回連続失敗（既存 `session.MAX_FAIL_COUNT = 5` に一致）で session を全リセットし、welcome + 役割選択 QR を返す**（B4 対応）。形式チェック（6 桁英数字大文字、`I`/`O`/`0`/`1` 以外）NG も同じフローで失敗カウントする。
+上記いずれの場合も `session.increment_fail_count()` で失敗回数をインクリメントする。**5 回連続失敗（既存 `session.MAX_FAIL_COUNT = 5` に一致）で session を全リセットし、welcome + 役割選択 QR を返す**（B4 対応）。`invalid_format` も同じフローで失敗カウントする。
 
 **検証成功時の副作用**:
 - `data/invitations.json` を更新（`used_at=now`, `used_by_parent_id=parent_line_user_id`）
