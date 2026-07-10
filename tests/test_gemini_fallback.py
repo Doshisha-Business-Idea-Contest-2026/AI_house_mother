@@ -23,6 +23,7 @@ exception.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -55,6 +56,17 @@ _TEXT_EXCEPTIONS: list[BaseException] = [
     gexc.DeadlineExceeded("timeout"),
     RuntimeError("unexpected"),
 ]
+
+
+class _RecordingHandler(logging.Handler):
+    """Capture log records without relying on pytest fixtures."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
 
 
 class TestCallGeminiFallback(_RealPathMixin):
@@ -192,3 +204,72 @@ class TestTimeoutConstantsRemainInsideWebhookBudget:
     def test_finalize_timeout_is_snappy(self) -> None:
         # Runs before the confirmation card — must feel instant.
         assert gemini._FINALIZE_TIMEOUT_S <= 10
+
+
+class TestParseActivityJson:
+    def test_drops_items_missing_required_fields(self) -> None:
+        handler = _RecordingHandler()
+        logger = logging.getLogger(gemini.__name__)
+        original_level = logger.level
+        logger.addHandler(handler)
+        logger.setLevel(logging.WARNING)
+        try:
+            result = gemini._parse_activity_json(
+                "["
+                '{"title": "A", "summary": "S", "reference_type": "generated"},'
+                '{"title": "B", "summary": "S", "why_recommend": "W", '
+                '"reference_type": "generated"}'
+                "]"
+            )
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(original_level)
+
+        assert [item["title"] for item in result] == ["B"]
+        assert any("missing keys" in record.getMessage() for record in handler.records)
+
+    def test_drops_items_with_invalid_reference_type(self) -> None:
+        result = gemini._parse_activity_json(
+            "["
+            '{"title": "A", "summary": "S", "why_recommend": "W", '
+            '"reference_type": "made_up"},'
+            '{"title": "B", "summary": "S", "why_recommend": "W", '
+            '"reference_type": "store"}'
+            "]"
+        )
+
+        assert [item["reference_type"] for item in result] == ["store"]
+
+    def test_optional_location_and_when_still_default_to_empty(self) -> None:
+        result = gemini._parse_activity_json(
+            "["
+            '{"title": "A", "summary": "S", "why_recommend": "W", '
+            '"reference_type": "generated"}'
+            "]"
+        )
+
+        assert result == [
+            {
+                "title": "A",
+                "summary": "S",
+                "why_recommend": "W",
+                "reference_type": "generated",
+                "location": "",
+                "when": "",
+            }
+        ]
+
+
+class TestNormaliseInterests:
+    def test_string_interest_stays_as_single_item(self) -> None:
+        assert gemini._normalise_interests({"interests": "sports"}) == ["sports"]
+
+    def test_list_keeps_only_string_items(self) -> None:
+        assert gemini._normalise_interests({"interests": ["sports", 123, "music"]}) == [
+            "sports",
+            "music",
+        ]
+
+    def test_none_or_missing_interests_yields_empty_list(self) -> None:
+        assert gemini._normalise_interests({"interests": None}) == []
+        assert gemini._normalise_interests({}) == []

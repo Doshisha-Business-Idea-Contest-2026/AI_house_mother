@@ -41,6 +41,19 @@ class TestSummariseStores:
         out = prompts._summarise_stores(stores)
         assert "[情報鮮度: 不明]" in out
 
+    def test_falls_back_to_unknown_when_field_empty(self) -> None:
+        stores = [
+            {
+                "name": "空鮮度店",
+                "category": "restaurant",
+                "area": "上京区",
+                "description": "",
+                "data_freshness_note": "",
+            }
+        ]
+        out = prompts._summarise_stores(stores)
+        assert "[情報鮮度: 不明]" in out
+
     def test_empty_stores_returns_placeholder(self) -> None:
         assert prompts._summarise_stores([]) == "（該当なし）"
 
@@ -64,6 +77,18 @@ class TestSummariseAreas:
         out = prompts._summarise_areas(areas)
         assert "[情報鮮度: 不明]" in out
 
+    def test_falls_back_to_unknown_when_field_empty(self) -> None:
+        areas = [
+            {
+                "name": "空鮮度エリア",
+                "category": "district",
+                "description": "",
+                "last_verified_at": "",
+            }
+        ]
+        out = prompts._summarise_areas(areas)
+        assert "[情報鮮度: 不明]" in out
+
 
 class TestSummariseEvents:
     def test_includes_last_verified_at(self) -> None:
@@ -80,6 +105,20 @@ class TestSummariseEvents:
         out = prompts._summarise_events(events)
         assert "2026-07" in out
         assert "[情報鮮度:" in out
+
+    def test_falls_back_to_unknown_when_field_empty(self) -> None:
+        events = [
+            {
+                "name": "空鮮度イベント",
+                "category": "festival",
+                "area": "今出川",
+                "description": "学園祭",
+                "schedule": "毎年11月",
+                "last_verified_at": "",
+            }
+        ]
+        out = prompts._summarise_events(events)
+        assert "[情報鮮度: 不明]" in out
 
 
 class TestBuildLifeConsultationPrompt:

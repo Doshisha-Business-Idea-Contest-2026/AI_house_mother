@@ -14,12 +14,19 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services import gemini, monthly_report, posts, storage, usage_stats
+from src.services import (
+    gemini,
+    monthly_report,
+    parent_links,
+    posts,
+    storage,
+    usage_stats,
+)
 from src.templates.flex import monthly_report as flex_monthly
 
 _JST = ZoneInfo("Asia/Tokyo")
@@ -53,7 +60,11 @@ class _TempDataDirMixin:
 
 
 def _add_shared_post(
-    user_id: str, when: datetime, title: str = "title", category: str = "study"
+    user_id: str,
+    when: datetime,
+    title: str = "title",
+    category: str = "study",
+    share_with_parent: bool = True,
 ) -> None:
     posts.add_post(
         line_user_id=user_id,
@@ -62,7 +73,7 @@ def _add_shared_post(
         summary="body",
         learned="learned",
         area=None,
-        share_with_parent=True,
+        share_with_parent=share_with_parent,
     )
     # posts.add_post uses datetime.now(JST) for created_at, which fails
     # the per-month filter in tests that need explicit timestamps. Patch
@@ -116,6 +127,30 @@ class TestReportAssembly(_TempDataDirMixin):
         assert report["year_month"] == "2025-12"
         assert report["current_count"] == 1
         assert report["prev_count"] == 1
+
+    def test_private_posts_do_not_leak_to_parent_report_or_flex(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=_JST)
+        _add_shared_post(
+            "U-abc",
+            datetime(2026, 7, 1, 9, 0, tzinfo=_JST),
+            title="Shared post",
+        )
+        _add_shared_post(
+            "U-abc",
+            datetime(2026, 7, 2, 9, 0, tzinfo=_JST),
+            title="Private post",
+            share_with_parent=False,
+        )
+
+        report = monthly_report.build_current_month_report("U-abc", now_jst=now)
+        bubble = flex_monthly.build_monthly_report_bubble(report)
+        texts = _texts(bubble)
+
+        assert report["current_count"] == 1
+        assert [p["title"] for p in report["posts"]] == ["Shared post"]
+        assert "🎓 Shared post" in texts
+        assert "🎓 Private post" not in texts
+        assert "🌸 頑張ったこと 1 件" in texts
 
 
 class TestIsReportEmpty(_TempDataDirMixin):
@@ -340,3 +375,34 @@ class TestReportPathsForwardInteractiveFlag(_TempDataDirMixin):
         now = datetime(2026, 7, 15, 12, 0, tzinfo=_JST)
         monthly_report.build_previous_month_report("U-abc", now_jst=now)
         assert self._interactive_calls == [False]
+
+
+class TestPushPreviousMonth(_TempDataDirMixin):
+    def setup_method(self) -> None:
+        super().setup_method()
+        self._orig_list_all_active_pairs = parent_links.list_all_active_pairs
+        self._orig_push_flex = monthly_report.push_flex
+        parent_links.list_all_active_pairs = lambda: []  # type: ignore[assignment]
+        monthly_report.push_flex = self._fail_push  # type: ignore[assignment]
+
+    def teardown_method(self) -> None:
+        parent_links.list_all_active_pairs = self._orig_list_all_active_pairs
+        monthly_report.push_flex = self._orig_push_flex  # type: ignore[assignment]
+        super().teardown_method()
+
+    def _fail_push(self, *args: object, **kwargs: object) -> None:
+        raise AssertionError("push_flex should not be called without pairs")
+
+    def test_push_batch_records_provided_now_as_jst(self) -> None:
+        now_utc = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
+
+        result = monthly_report.push_previous_month_to_all(
+            now_jst=now_utc,
+            target_year_month="2026-06",
+            force=True,
+        )
+        state = storage.load_json(monthly_report.STATE_FILE)
+
+        assert result["skipped_batch"] is False
+        assert state["last_batch"]["executed_at"] == "2026-07-01T09:00:00+09:00"
+        assert result["batch_id"] == "MRB-2026-07-01T09:00:00+09:00"

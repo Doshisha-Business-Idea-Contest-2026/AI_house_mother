@@ -13,12 +13,19 @@ from src.services.storage import load_json, locked_edit
 JST = ZoneInfo("Asia/Tokyo")
 
 _FILE = "profiles.json"
-_EMPTY: dict = {"profiles": {}}
 
 
-def get_profile(line_user_id: str) -> dict | None:
+def _ensure_shape(data: object) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        data = {}
+    if not isinstance(data.get("profiles"), dict):
+        data["profiles"] = {}
+    return data
+
+
+def get_profile(line_user_id: str) -> dict[str, Any] | None:
     """Return the stored profile record for ``line_user_id`` or ``None``."""
-    data = load_json(_FILE, default=_EMPTY)
+    data = _ensure_shape(load_json(_FILE, default=None))
     return data["profiles"].get(line_user_id)
 
 
@@ -41,8 +48,8 @@ def save_profile(line_user_id: str, profile: dict[str, Any]) -> None:
     now = datetime.now(JST).isoformat()
     # Atomic profile upsert so a re-registration race cannot drop
     # created_at (docs/05 §3.1, Issue #45).
-    with locked_edit(_FILE, default=_EMPTY) as data:
-        data.setdefault("profiles", {})
+    with locked_edit(_FILE, default=None) as data:
+        data = _ensure_shape(data)
         existing = data["profiles"].get(line_user_id, {})
         merged = {
             "line_user_id": line_user_id,
@@ -54,9 +61,14 @@ def save_profile(line_user_id: str, profile: dict[str, Any]) -> None:
 
 
 def delete_profile(line_user_id: str) -> bool:
-    """Remove the profile record. Returns ``True`` if a record was deleted."""
-    with locked_edit(_FILE, default=_EMPTY) as data:
-        data.setdefault("profiles", {})
+    """Remove only the profile record.
+
+    Related records such as posts, invitation history, parent links, and
+    usage stats are intentionally preserved. Returns ``True`` if a record
+    was deleted.
+    """
+    with locked_edit(_FILE, default=None) as data:
+        data = _ensure_shape(data)
         if line_user_id not in data["profiles"]:
             return False
         del data["profiles"][line_user_id]

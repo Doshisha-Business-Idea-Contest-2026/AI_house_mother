@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from linebot.v3.exceptions import InvalidSignatureError
@@ -11,6 +12,7 @@ from src.config import handler
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai_house_mother")
+JST = ZoneInfo("Asia/Tokyo")
 
 
 @router.get("/health")
@@ -19,7 +21,7 @@ async def health() -> dict:
     return {
         "status": "ok",
         "service": "ai_house_mother",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(JST).isoformat(),
     }
 
 

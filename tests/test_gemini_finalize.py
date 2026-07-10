@@ -11,6 +11,9 @@ each test toggles the module-level ``gemini.GEMINI_MOCK_MODE`` flag in
 
 from __future__ import annotations
 
+from typing import Any
+from unittest.mock import MagicMock, patch
+
 from src.services import gemini, posts
 
 
@@ -74,3 +77,73 @@ class TestParseFinalizeJson:
 
     def test_non_object_top_level_returns_empty_dict(self) -> None:
         assert gemini._parse_finalize_json('["a", "b"]') == {}
+
+
+class TestFinalizePostRealPathFallback:
+    def setup_method(self) -> None:
+        self._orig_mock = gemini.GEMINI_MOCK_MODE
+        gemini.GEMINI_MOCK_MODE = False
+
+    def teardown_method(self) -> None:
+        gemini.GEMINI_MOCK_MODE = self._orig_mock
+
+    def _kwargs(self, **overrides: object) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "category": "volunteer",
+            "summary": "下鴨神社の清掃に参加した",
+            "learned": "地域の人と話せた",
+            "regret": None,
+            "advice": None,
+            "area": "下鴨神社",
+            "period_raw": "去年の10月",
+            "today": "2026-07-09",
+        }
+        kwargs.update(overrides)
+        return kwargs
+
+    def _client_with_text(self, text: str) -> MagicMock:
+        cl = MagicMock()
+        response = MagicMock()
+        response.text = text
+        cl.generate_content.return_value = response
+        return cl
+
+    def test_api_exception_returns_fallback_dict(self) -> None:
+        cl = MagicMock()
+        cl.generate_content.side_effect = RuntimeError("api failed")
+
+        with patch.object(gemini, "_build_client", return_value=cl):
+            result = gemini.finalize_post(**self._kwargs())
+
+        assert cl.generate_content.call_count == 1
+        assert result == {
+            "title": "下鴨神社の清掃に参加した",
+            "period": "去年の10月",
+            "valid": True,
+            "reason": "",
+        }
+
+    def test_empty_model_period_falls_back_to_raw_period(self) -> None:
+        cl = self._client_with_text(
+            '{"title": "地域清掃への参加", "period": "", "valid": true, "reason": ""}'
+        )
+
+        with patch.object(gemini, "_build_client", return_value=cl):
+            result = gemini.finalize_post(**self._kwargs())
+
+        assert result["title"] == "地域清掃への参加"
+        assert result["period"] == "去年の10月"
+        assert result["valid"] is True
+
+    def test_malformed_or_empty_json_returns_fallback_dict(self) -> None:
+        for raw in ("", "{not json"):
+            cl = self._client_with_text(raw)
+
+            with patch.object(gemini, "_build_client", return_value=cl):
+                result = gemini.finalize_post(**self._kwargs())
+
+            assert cl.generate_content.call_count == 1
+            assert result["title"] == "下鴨神社の清掃に参加した"
+            assert result["period"] == "去年の10月"
+            assert result["valid"] is True
+            assert result["reason"] == ""

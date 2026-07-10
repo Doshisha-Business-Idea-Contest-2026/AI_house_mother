@@ -171,6 +171,8 @@ def save_json(relative_path: str, data: Any) -> None:
 | `created_at` | string | 作成日時 |
 | `updated_at` | string | 最終更新日時 |
 
+`profiles.delete_profile` は `profiles.json` 上のプロフィール本体のみを削除する。`posts.json`、`invitations.json`、`parent_links.json`、`usage_stats.json` などの関連レコードは履歴・連携状態として保持する。
+
 ### 4.3 posts.json
 
 学生の経験投稿。
