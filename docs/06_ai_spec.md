@@ -341,9 +341,11 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - `GEMINI_MOCK_MODE` 有効時は「（mock）今月も前向きに過ごされている様子です。」を返す。
 - Gemini 応答が空文字列または例外時は上記定型文にフォールバック。
 
-### 4.5 経験投稿ファイナライズ（title 生成 + period 正規化、FR-S6 / T4.15）
+### 4.5 経験投稿ファイナライズ（title 生成 + period 正規化 + 妥当性判定、FR-S6 / T4.15）
 
-経験投稿（`docs/04_functional_spec.md §4.5`）の全項目収集後、`post.share_parent` 選択直後に **1 回だけ**呼び、確認カードに載せる title を生成し、相対的な period 表現を絶対表現へ正規化する。実装は `services/gemini.py::finalize_post` と `services/prompts.py::build_post_finalize_prompt`。呼び出し中は `show_loading` で Loading Indicator を表示し、確認カードは push で後送する。
+経験投稿（`docs/04_functional_spec.md §4.5`）の全項目収集後、`post.share_parent` 選択直後に **1 回だけ**呼び、確認カードに載せる title を生成し、相対的な period 表現を絶対表現へ正規化し、あわせて**投稿内容の妥当性（`valid`）を判定する**。実装は `services/gemini.py::finalize_post` と `services/prompts.py::build_post_finalize_prompt`。呼び出し中は `show_loading` で Loading Indicator を表示し、確認カードは push で後送する。
+
+**妥当性判定（`valid` / `reason`）**: 抽選・クーポン目的の無意味な投稿が蓄積データ（保護者月次・他学生への SECI context）を汚染するのを防ぐため、この 1 回の呼び出しに妥当性チェックを相乗りさせる（追加の LLM 呼び出しは行わない）。`valid == false` の投稿は**保存しない**（確認カードへ進めず、固定警告文を返して終了する。ただし抽選 FR-S11 は引かせる。`docs/04_functional_spec.md §4.5` / §4.9）。判定は**誤検知を厳に避ける**方針とする（正当な投稿を弾く方がデモで致命的なため）。
 
 **入力**: 学生本人の投稿内容（`category` / `summary` / `learned` / `regret` / `advice` / `area` / 生入力 `period_raw`）と、投稿時点の日付 `today`（＝`created_at` の JST 日付）。
 
@@ -351,7 +353,7 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 {system_prompt_common}
 
 【今回の依頼】
-学生の経験投稿から、(1) 40 文字以内の短いタイトル、(2) 期間表現の絶対化、を行ってください。
+学生の経験投稿から、(1) 40 文字以内の短いタイトル、(2) 期間表現の絶対化、(3) 投稿内容の妥当性判定、を行ってください。
 
 【今日の日付】{today}（この日付を基準に相対表現を絶対表現へ変換する）
 
@@ -365,21 +367,26 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - 場所: {area}
 
 【出力ルール】
-- 必ず JSON オブジェクトのみを返す: {"title": "...", "period": "..."}
+- 必ず JSON オブジェクトのみを返す: {"title": "...", "period": "...", "valid": true, "reason": "..."}
 - title: 内容を表す簡潔な見出し。40 文字以内。絵文字・記号での装飾はしない。
 - period: {period_raw} を {today} 基準で絶対表現へ変換（例: 「去年の10月」→「2025年10月」、「先週末」→「2026年7月上旬」）。
   {period_raw} が空なら空文字。判断できない相対表現（「大学1年の頃」等）は無理に断定せず、元の表現に近い形で返す。
+- valid: 投稿として妥当なら true、不正なら false（真偽値）。
+  - false にするのは次のいずれかが明白な場合のみ: 単一文字の連打やキーボード乱打・意味をなさない文字列、荒唐無稽で明らかに虚偽の内容、中身の伴わない抽選/クーポン目的と判断できる投稿。
+  - 短くても内容が伴っていれば true。判断に迷う場合は必ず true（正当な投稿を弾かない）。
+- reason: valid が false のときのみ、日本語で簡潔に理由を書く（true のときは空文字でよい）。
 - 投稿内容以外の事実を創作しない。個人を特定する情報は書かない。
 ```
 
-**JSON 出力スキーマ**: `{"title": string, "period": string}`。`services/gemini.py` の活動提案（§4.1）と同じく SDK の JSON モード（`response_mime_type: "application/json"` + `response_schema`）で受け取る。
+**JSON 出力スキーマ**: `{"title": string, "period": string, "valid": boolean, "reason": string}`。`services/gemini.py` の活動提案（§4.1）と同じく SDK の JSON モード（`response_mime_type: "application/json"` + `response_schema`）で受け取る。
 
-**パラメータ**: `temperature: 0.3`（決定性重視）, `max_output_tokens: 120`, `timeout: 8s`。
+**パラメータ**: `temperature: 0.3`（決定性重視）, `max_output_tokens: 160`, `timeout: 8s`。
 
 **フォールバック**（フローを止めない。`services/gemini.py::finalize_post` が常に有効な dict を返す）:
 
-- `GEMINI_MOCK_MODE` 有効時・例外・空応答・JSON パース失敗時は、title = `summary` の冒頭 40 文字、period = `period_raw`（正規化せずそのまま）を返す。
+- `GEMINI_MOCK_MODE` 有効時・例外・空応答・JSON パース失敗時は、title = `summary` の冒頭 40 文字、period = `period_raw`（正規化せずそのまま）、**`valid = true`**（＝弾かず通す）を返す。
 - title が空や 40 文字超で返った場合も上記ルールで補正する。
+- `valid` が欠落・非真偽値で返った場合も `true` にフォールバックする（誤検知回避）。
 
 **プライバシー/正確性**: 入力は学生本人の投稿のみで、他者の個人情報は渡さない。正規化はあくまで表示・保存の補助であり、プロフィール依存の曖昧表現（「大学1年の頃」等）は now 基準だけでは絶対化しきれないため、LLM のベストエフォートとする（プロフィール投入は将来拡張）。
 
