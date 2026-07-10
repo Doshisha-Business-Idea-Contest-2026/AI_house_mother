@@ -87,6 +87,7 @@ seed データは種別ごとに扱いが異なる。人物系はプライバシ
 
 - JSON ファイルは `data/` 配下に配置し、`fcntl` ロックで並行書き込みを制御する（既存 `kcb_linebot/storage.py` と同じパターン）。
 - 会話ログを保存する場合は必ず本人同意フローを設計する（MVP では最小限に留める）。
+- **`data/*.json` は `ai_house_mother.service` が稼働中に外部から書き換えない**。稼働中のプロセスは JSON をメモリに保持しており、外部書き換えは次回書き込みで silently 上書きされる or 破損する。デモリセット (`scripts/reset_demo.py`) は自身で `systemctl is-active` を確認し、稼働中は abort する（詳細: `deploy/README.md` §Demo reset）。
 
 ## 個人情報・プライバシー
 
