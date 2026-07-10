@@ -76,12 +76,19 @@ def _assemble_report(
     ref_year: int,
     ref_month: int,
     year_month: str,
+    *,
+    interactive: bool = False,
 ) -> dict[str, Any]:
     """Build the full report dict for ``year_month`` (Pull and Push share this).
 
     Reads current-month posts, previous-month count, lifetime total, the
     current-month usage bucket, and asks Gemini for the closing summary.
     Every downstream renderer receives the same shape.
+
+    ``interactive=True`` is forwarded to :func:`gemini.summarize_month` so
+    the LINE Webhook Pull path uses the short timeout that fits inside
+    the 30 s reply ceiling. The systemd-timer Push path keeps the
+    longer batch timeout.
     """
     month_posts = posts.list_month_shared(student_user_id, ref_year, ref_month)
     prev_year, prev_month = _prev_year_month(ref_year, ref_month)
@@ -95,6 +102,7 @@ def _assemble_report(
         year_month=year_month,
         posts_month=month_posts,
         usage=usage,
+        interactive=interactive,
     )
 
     trimmed = _trim(month_posts)
@@ -140,6 +148,9 @@ def build_current_month_report(
 ) -> dict[str, Any]:
     """Return the current JST-month summary for ``student_user_id``.
 
+    This is the LINE Webhook Pull path (parent's "📊 今月のレポート"
+    button) so the Gemini call runs on the short interactive timeout.
+
     Args:
         student_user_id: LINE user id of the target student.
         now_jst: Optional reference datetime (JST). Defaults to the
@@ -155,6 +166,7 @@ def build_current_month_report(
         ref_year=ref.year,
         ref_month=ref.month,
         year_month=_year_month(ref),
+        interactive=True,
     )
 
 

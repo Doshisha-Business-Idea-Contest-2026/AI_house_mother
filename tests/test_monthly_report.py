@@ -39,6 +39,8 @@ class _TempDataDirMixin:
             year_month: str,
             posts_month: list[dict[str, Any]],
             usage: dict[str, int],
+            *,
+            interactive: bool = False,
         ) -> str:
             return f"[stub] {year_month} posts={len(posts_month)}"
 
@@ -244,3 +246,97 @@ class TestGeminiFallback:
             usage={"life": 0, "activity": 0, "post": 0, "profile": 0},
         )
         assert result == gemini._MONTH_SUMMARY_FALLBACK
+
+
+class TestSummarizeMonthTimeoutDispatch:
+    """``summarize_month`` picks the timeout for its execution context.
+
+    The Pull path (parent's "📊 今月のレポート" button, served inside a
+    LINE Webhook) must not spend the 30-second batch budget or the
+    reply-token expiration triggers a duplicate delivery. The
+    systemd-timer Push path keeps the longer budget.
+    """
+
+    def setup_method(self) -> None:
+        self._orig_call_gemini = gemini.call_gemini
+        self._orig_mock_mode = gemini.GEMINI_MOCK_MODE
+        gemini.GEMINI_MOCK_MODE = False  # force the real code path
+        self._calls: list[dict[str, Any]] = []
+
+        def _fake_call_gemini(
+            prompt: str,
+            *,
+            temperature: float = gemini.DEFAULT_TEMPERATURE,
+            max_output_tokens: int = gemini.DEFAULT_MAX_TOKENS,
+            timeout: float = gemini.DEFAULT_TIMEOUT_S,
+        ) -> str:
+            self._calls.append({"timeout": timeout})
+            return "AI summary body"
+
+        gemini.call_gemini = _fake_call_gemini  # type: ignore[assignment]
+
+    def teardown_method(self) -> None:
+        gemini.call_gemini = self._orig_call_gemini  # type: ignore[assignment]
+        gemini.GEMINI_MOCK_MODE = self._orig_mock_mode
+
+    def _summarize(self, *, interactive: bool) -> None:
+        gemini.summarize_month(
+            profile=None,
+            year_month="2026-07",
+            posts_month=[{"title": "P1"}, {"title": "P2"}, {"title": "P3"}],
+            usage={"life": 0, "activity": 0, "post": 0, "profile": 0},
+            interactive=interactive,
+        )
+
+    def test_interactive_uses_default_timeout(self) -> None:
+        self._summarize(interactive=True)
+        assert len(self._calls) == 1
+        assert self._calls[0]["timeout"] == gemini.DEFAULT_TIMEOUT_S
+
+    def test_batch_uses_batch_timeout(self) -> None:
+        self._summarize(interactive=False)
+        assert len(self._calls) == 1
+        assert self._calls[0]["timeout"] == gemini._BATCH_TIMEOUT_S
+
+    def test_default_is_batch(self) -> None:
+        # Missing kwarg must default to the batch (long) budget so the
+        # timer job's Q1 seconds latency is not clipped.
+        gemini.summarize_month(
+            profile=None,
+            year_month="2026-07",
+            posts_month=[{"title": "P1"}, {"title": "P2"}, {"title": "P3"}],
+            usage={"life": 0, "activity": 0, "post": 0, "profile": 0},
+        )
+        assert self._calls[0]["timeout"] == gemini._BATCH_TIMEOUT_S
+
+
+class TestReportPathsForwardInteractiveFlag(_TempDataDirMixin):
+    """``build_current_month_report`` runs on the Webhook so it must forward
+    ``interactive=True``; ``build_previous_month_report`` is Push path only."""
+
+    def setup_method(self) -> None:
+        super().setup_method()
+        self._interactive_calls: list[bool] = []
+
+        def _spy_summary(
+            profile: dict[str, Any] | None,
+            year_month: str,
+            posts_month: list[dict[str, Any]],
+            usage: dict[str, int],
+            *,
+            interactive: bool = False,
+        ) -> str:
+            self._interactive_calls.append(interactive)
+            return "[spy]"
+
+        gemini.summarize_month = _spy_summary  # type: ignore[assignment]
+
+    def test_current_month_report_flags_interactive_true(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=_JST)
+        monthly_report.build_current_month_report("U-abc", now_jst=now)
+        assert self._interactive_calls == [True]
+
+    def test_previous_month_report_defaults_to_batch(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=_JST)
+        monthly_report.build_previous_month_report("U-abc", now_jst=now)
+        assert self._interactive_calls == [False]
