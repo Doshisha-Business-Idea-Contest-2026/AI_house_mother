@@ -13,6 +13,7 @@ LINE WebhookHandler.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any
 
 from linebot.v3.webhooks import MessageEvent, PostbackEvent
@@ -123,8 +124,7 @@ def handle_link_text(event: MessageEvent) -> None:
     parent can start over from role selection.
     """
     user_id = event.source.user_id
-    raw = event.message.text.strip()
-    code = raw.upper()
+    code = _normalize_code(event.message.text)
 
     if not _is_valid_format(code):
         _handle_link_failure(event, user_id, "invalid_format")
@@ -259,6 +259,19 @@ def _push_report_for(parent_user_id: str, student_user_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _normalize_code(text: str) -> str:
+    """Return the parent-typed invitation string in canonical form.
+
+    Fullwidth digits/letters (e.g. ``Ａ３Ｆ７Ｋ９``) collapse to ASCII via
+    NFKC; incidental spaces and hyphens (``A3F-7K9``) are stripped so IMEs
+    on iOS/Android don't strand the parent. The canonical alphabet lives
+    in :data:`invitations.CODE_ALPHABET` — validation stays in
+    :func:`_is_valid_format`.
+    """
+    normalized = unicodedata.normalize("NFKC", text)
+    return normalized.replace(" ", "").replace("-", "").strip().upper()
 
 
 def _is_valid_format(code: str) -> bool:
