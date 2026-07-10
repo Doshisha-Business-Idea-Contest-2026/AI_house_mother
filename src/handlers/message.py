@@ -395,9 +395,16 @@ def _require_role(event: MessageEvent, user_id: str, required: str) -> bool:
             quick_reply=qr,
         )
         return False
-    # role is the other one
+    # role is the other one — keep the user oriented in their own menu so
+    # a mistap doesn't strand them (docs/04 §3.4). Mirrors the pattern in
+    # postback._reply_wrong_role.
+    label = "学生" if required == "student" else "保護者"
     reply_text(
         event.reply_token,
-        f"この操作は{'学生' if required == 'student' else '保護者'}アカウント向けです。",
+        (
+            f"この操作は{label}アカウント向けです。\n"
+            "役割を変える場合は「はじめる」と送って選び直してください。"
+        ),
+        quick_reply=main_menu_quick_reply(role),
     )
     return False

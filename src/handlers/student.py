@@ -219,9 +219,11 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
     state = session.get_state(user_id)
 
     if state is None:
+        role = users.get_role(user_id) or "student"
         reply_text(
             event.reply_token,
             "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
+            quick_reply=main_menu_quick_reply(role),
         )
         return
 
@@ -276,9 +278,11 @@ def handle_profile_postback(event: PostbackEvent, data: str) -> None:
 
     if data == "profile:confirm:yes":
         if state is None or state["state"] != "profile.confirm":
+            role = users.get_role(user_id) or "student"
             reply_text(
                 event.reply_token,
                 "セッションが切れました。もう一度「プロフィール登録」と送るか、👤 プロフィール → ✏️ 編集する からやり直してください。",
+                quick_reply=main_menu_quick_reply(role),
             )
             return
         _finalize_profile(event)
