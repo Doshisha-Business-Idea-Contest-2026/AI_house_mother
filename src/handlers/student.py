@@ -40,6 +40,7 @@ from src.services import (
 from src.services.line_reply import (
     push_flex,
     push_text,
+    push_texts,
     reply_flex,
     reply_text,
     show_loading,
@@ -723,44 +724,62 @@ def handle_life_consultation(event: MessageEvent) -> None:
     total_hits = result["total_hits"]
 
     try:
-        answer = gemini.answer_life_question(
+        parts = gemini.answer_life_question(
             profile, text, result, total_hits=total_hits
         )
     except Exception:
         logger.exception("answer_life_question crashed")
-        answer = (
-            "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください🙇"
-        )
+        parts = {
+            "empathy": "",
+            "answer": (
+                "うまく答えを考えられませんでした。少し時間を空けてもう一度お試しください🙇"
+            ),
+            "closing": "",
+        }
 
     disclaimer_shown = zero_context
     medical_followup_shown = zero_context and medical_intent
 
-    # docs/06 §4.2 / docs/04 §4.4: LINE does not render Markdown, so strip
-    # Gemini's Markdown residue and join disclaimer / body / followup with a
-    # single blank line before sending as one text bubble.
-    answer = text_format.normalize_markdown(answer)
-    blocks: list[str] = []
-    if disclaimer_shown:
-        blocks.append(prompts.ZERO_CONTEXT_DISCLAIMER)
-    blocks.append(answer)
+    # docs/06 §4.2 / docs/04 §4.4: strip Gemini's Markdown residue from each
+    # part, then lay them out as up to three bubbles (empathy / answer /
+    # closing) sent as one push. In Zero-context the disclaimer leads and the
+    # empathy line is dropped; a medical followup is appended to the closing.
+    empathy = text_format.collapse_blank_lines(
+        text_format.normalize_markdown(parts.get("empathy", ""))
+    )
+    answer = text_format.collapse_blank_lines(
+        text_format.normalize_markdown(parts.get("answer", ""))
+    )
+    closing = text_format.collapse_blank_lines(
+        text_format.normalize_markdown(parts.get("closing", ""))
+    )
     if medical_followup_shown:
-        blocks.append(prompts.MEDICAL_FOLLOWUP)
-    final = text_format.join_blocks(blocks)
+        closing = text_format.join_blocks([closing, prompts.MEDICAL_FOLLOWUP])
+
+    bubbles: list[str] = []
+    if disclaimer_shown:
+        bubbles.append(prompts.ZERO_CONTEXT_DISCLAIMER.strip())
+    elif empathy:
+        bubbles.append(empathy)
+    bubbles.append(answer)
+    if closing:
+        bubbles.append(closing)
 
     logger.info(
         "life_consultation user=%s total_hits=%d zero_context=%s "
-        "disclaimer_shown=%s medical_followup_shown=%s "
+        "disclaimer_shown=%s medical_followup_shown=%s bubbles=%d "
         "student_posts_hits=%d matched_categories=%s",
         user_id[:8] if user_id else "?",
         total_hits,
         zero_context,
         disclaimer_shown,
         medical_followup_shown,
+        len(bubbles),
         len(result["student_posts"]),
         sorted(result["matched_categories"]),
     )
 
-    push_text(user_id, final, quick_reply=_life_quick_reply())
+    push_texts(user_id, bubbles, quick_reply=_life_quick_reply())
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
 
