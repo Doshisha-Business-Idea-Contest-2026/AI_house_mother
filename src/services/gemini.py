@@ -42,6 +42,15 @@ _BATCH_TIMEOUT_S = 30
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 500
 
+_ACTIVITY_REFERENCE_TYPE_VALUES = (
+    "event",
+    "volunteer",
+    "store",
+    "senior_post",
+    "generated",
+    "static_fallback",
+)
+
 _ACTIVITY_JSON_SCHEMA = {
     "type": "array",
     "items": {
@@ -54,19 +63,13 @@ _ACTIVITY_JSON_SCHEMA = {
             "why_recommend": {"type": "string"},
             "reference_type": {
                 "type": "string",
-                "enum": [
-                    "event",
-                    "volunteer",
-                    "store",
-                    "senior_post",
-                    "generated",
-                    "static_fallback",
-                ],
+                "enum": list(_ACTIVITY_REFERENCE_TYPE_VALUES),
             },
         },
         "required": ["title", "summary", "why_recommend", "reference_type"],
     },
 }
+_ACTIVITY_REFERENCE_TYPES = frozenset(_ACTIVITY_REFERENCE_TYPE_VALUES)
 
 # docs/06 §4.5: JSON schema for the post-finalize call (title generation +
 # period normalization). Kept minimal so the model returns exactly the two
@@ -165,7 +168,7 @@ def propose_activities(
         logger.info("[GEMINI_MOCK] propose_activities returning static fallback")
         return seed.pick_static_fallback_activities(profile, count=fallback_count)
 
-    interests: list[str] = profile.get("interests") or []
+    interests = _normalise_interests(profile)
     want_to_do = profile.get("want_to_do") or ""
     keywords = [t for t in interests] + [w for w in want_to_do.split() if w]
 
@@ -234,7 +237,7 @@ def propose_from_student_efforts(
         )
         return seed.pick_senior_post_activities(profile, count=fallback_count)
 
-    interests: list[str] = profile.get("interests") or []
+    interests = _normalise_interests(profile)
     prompt = prompts.build_student_efforts_prompt(
         profile=profile,
         senior_posts=seed.get_senior_posts_by_keywords(interests),
@@ -558,17 +561,46 @@ def _parse_activity_json(raw: str) -> list[dict[str, Any]]:
         return []
 
     activities: list[dict[str, Any]] = []
-    for item in parsed:
+    required_keys = {"title", "summary", "why_recommend", "reference_type"}
+    for index, item in enumerate(parsed):
         if not isinstance(item, dict):
+            logger.warning(
+                "[GEMINI_FALLBACK] Dropping activity item %d: not an object", index
+            )
             continue
-        if "title" not in item or "summary" not in item:
+        missing_keys = required_keys - item.keys()
+        if missing_keys:
+            logger.warning(
+                "[GEMINI_FALLBACK] Dropping activity item %d: missing keys %s",
+                index,
+                sorted(missing_keys),
+            )
+            continue
+        if item.get("reference_type") not in _ACTIVITY_REFERENCE_TYPES:
+            logger.warning(
+                "[GEMINI_FALLBACK] Dropping activity item %d: invalid reference_type %r",
+                index,
+                item.get("reference_type"),
+            )
             continue
         item.setdefault("location", "")
         item.setdefault("when", "")
-        item.setdefault("why_recommend", "")
-        item.setdefault("reference_type", "generated")
         activities.append(item)
     return activities
+
+
+def _normalise_interests(profile: dict[str, Any] | None) -> list[str]:
+    """Return profile interests without splitting a scalar string."""
+    if not profile:
+        return []
+    raw = profile.get("interests")
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, list):
+        return [str(item) for item in raw if isinstance(item, str)]
+    return []
 
 
 def _parse_finalize_json(raw: str) -> dict[str, Any]:

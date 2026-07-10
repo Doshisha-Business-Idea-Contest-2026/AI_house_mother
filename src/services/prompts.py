@@ -140,7 +140,7 @@ def _summarise_profile(profile: dict[str, Any] | None) -> str:
 def _summarise_areas(areas: list[dict[str, Any]]) -> str:
     return "\n".join(
         f"- {a['name']} ({a.get('category', '')}): {a.get('description', '')}"
-        f" [情報鮮度: {a.get('last_verified_at', '不明')}]"
+        f" [情報鮮度: {a.get('last_verified_at') or '不明'}]"
         for a in areas
     )
 
@@ -150,7 +150,7 @@ def _summarise_stores(stores: list[dict[str, Any]]) -> str:
         return "（該当なし）"
     return "\n".join(
         f"- {s['name']} ({s.get('category', '')}, {s.get('area', '')}): {s.get('description', '')}"
-        f" [情報鮮度: {s.get('data_freshness_note', '不明')}]"
+        f" [情報鮮度: {s.get('data_freshness_note') or '不明'}]"
         for s in stores
     )
 
@@ -160,7 +160,7 @@ def _summarise_events(events: list[dict[str, Any]]) -> str:
         return "（該当なし）"
     return "\n".join(
         f"- {e['name']} ({e.get('category', '')}, {e.get('area', '')}): {e.get('description', '')} 日程: {e.get('schedule', '')}"
-        f" [情報鮮度: {e.get('last_verified_at', '不明')}]"
+        f" [情報鮮度: {e.get('last_verified_at') or '不明'}]"
         for e in events
     )
 

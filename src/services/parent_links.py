@@ -29,18 +29,22 @@ logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
 
 _FILE = "parent_links.json"
-_EMPTY: dict[str, list] = {"links": []}
 
 
 def _now_iso() -> str:
     return datetime.now(JST).isoformat()
 
 
-def _load() -> dict[str, Any]:
-    data = load_json(_FILE, default=_EMPTY)
-    if "links" not in data:
+def _ensure_shape(data: object) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        data = {}
+    if not isinstance(data.get("links"), list):
         data["links"] = []
     return data
+
+
+def _load() -> dict[str, Any]:
+    return _ensure_shape(load_json(_FILE, default=None))
 
 
 def link(parent_user_id: str, student_user_id: str) -> dict[str, Any]:
@@ -61,9 +65,8 @@ def link(parent_user_id: str, student_user_id: str) -> dict[str, Any]:
     # Wrap the "find-or-append" walk under a lock so a re-tap of the
     # link button from another LINE session cannot append a duplicate
     # row (docs/05 §3.1, Issue #45).
-    with locked_edit(_FILE, default=_EMPTY) as data:
-        if "links" not in data:
-            data["links"] = []
+    with locked_edit(_FILE, default=None) as data:
+        data = _ensure_shape(data)
         for row in data["links"]:
             if (
                 row["parent_user_id"] == parent_user_id

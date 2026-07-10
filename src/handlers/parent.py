@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 CODE_LENGTH = invitations.CODE_LENGTH
 CODE_ALPHABET_SET = set(invitations.CODE_ALPHABET)
-MAX_LINK_FAIL = 5
+MAX_LINK_FAIL = session.MAX_FAIL_COUNT
 
 LINK_PROMPT = (
     "🔑 お子さんから受け取った 6 桁のコードを入力してください（英数字、大文字）\n"

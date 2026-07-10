@@ -5,7 +5,7 @@ service. The user's LINE ``user_id`` is used as the primary key.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from src.services.storage import load_json, locked_edit
@@ -15,12 +15,19 @@ JST = ZoneInfo("Asia/Tokyo")
 Role = Literal["student", "parent"]
 
 _FILE = "users.json"
-_EMPTY: dict = {"users": {}}
 
 
-def get_user(line_user_id: str) -> dict | None:
+def _ensure_shape(data: object) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        data = {}
+    if not isinstance(data.get("users"), dict):
+        data["users"] = {}
+    return data
+
+
+def get_user(line_user_id: str) -> dict[str, Any] | None:
     """Return the stored record for ``line_user_id`` or ``None``."""
-    data = load_json(_FILE, default=_EMPTY)
+    data = _ensure_shape(load_json(_FILE, default=None))
     return data["users"].get(line_user_id)
 
 
@@ -44,8 +51,8 @@ def save_user(line_user_id: str, role: Role) -> None:
     # Atomically preserve created_at while refreshing updated_at, so a
     # second concurrent registration cannot flip the timestamps
     # (docs/05 §3.1, Issue #45).
-    with locked_edit(_FILE, default=_EMPTY) as data:
-        data.setdefault("users", {})
+    with locked_edit(_FILE, default=None) as data:
+        data = _ensure_shape(data)
         existing = data["users"].get(line_user_id, {})
         data["users"][line_user_id] = {
             "line_user_id": line_user_id,

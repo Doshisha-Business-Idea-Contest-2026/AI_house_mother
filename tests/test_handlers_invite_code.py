@@ -9,7 +9,14 @@ Style follows ``tests/test_posts.py``: no pytest fixtures, class-based.
 
 from __future__ import annotations
 
+import json
+import tempfile
+from datetime import timedelta
+from pathlib import Path
+from unittest.mock import patch
+
 from src.handlers.parent import _is_valid_format, _normalize_code
+from src.services import invitations, storage
 
 
 class TestNormalizeCode:
@@ -89,3 +96,109 @@ class TestNormalizedCodeIsAcceptedByValidator:
         assert _is_valid_format(_normalize_code("A3F7K1")) is False
         assert _is_valid_format(_normalize_code("A3F7KO")) is False
         assert _is_valid_format(_normalize_code("A3F7KI")) is False
+
+
+class TestInvitationConsume:
+    def test_consume_uses_active_record_when_same_code_has_used_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            now = invitations._now_jst()
+            (data_dir / "invitations.json").write_text(
+                json.dumps(
+                    {
+                        "invitations": [
+                            {
+                                "code": "A3F7K9",
+                                "student_user_id": "old-student",
+                                "created_at": (now - timedelta(hours=2)).isoformat(),
+                                "expires_at": (now + timedelta(hours=22)).isoformat(),
+                                "used_at": (now - timedelta(hours=1)).isoformat(),
+                                "used_by_parent_id": "old-parent",
+                            },
+                            {
+                                "code": "A3F7K9",
+                                "student_user_id": "active-student",
+                                "created_at": now.isoformat(),
+                                "expires_at": (now + timedelta(hours=24)).isoformat(),
+                                "used_at": None,
+                                "used_by_parent_id": None,
+                            },
+                        ]
+                    },
+                    indent=4,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(storage, "DATA_DIR", data_dir):
+                student_id, err = invitations.consume("A3F7K9", "new-parent")
+
+            assert err == "ok"
+            assert student_id == "active-student"
+            rows = json.loads(
+                (data_dir / "invitations.json").read_text(encoding="utf-8")
+            )["invitations"]
+            assert rows[0]["used_by_parent_id"] == "old-parent"
+            assert rows[1]["used_by_parent_id"] == "new-parent"
+
+    def test_consume_uses_active_record_when_same_code_has_expired_history(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            now = invitations._now_jst()
+            (data_dir / "invitations.json").write_text(
+                json.dumps(
+                    {
+                        "invitations": [
+                            {
+                                "code": "A3F7K9",
+                                "student_user_id": "expired-student",
+                                "created_at": (now - timedelta(hours=30)).isoformat(),
+                                "expires_at": (now - timedelta(hours=6)).isoformat(),
+                                "used_at": None,
+                                "used_by_parent_id": None,
+                            },
+                            {
+                                "code": "A3F7K9",
+                                "student_user_id": "active-student",
+                                "created_at": now.isoformat(),
+                                "expires_at": (now + timedelta(hours=24)).isoformat(),
+                                "used_at": None,
+                                "used_by_parent_id": None,
+                            },
+                        ]
+                    },
+                    indent=4,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(storage, "DATA_DIR", data_dir):
+                student_id, err = invitations.consume("A3F7K9", "new-parent")
+
+            assert err == "ok"
+            assert student_id == "active-student"
+
+    def test_generate_unique_code_rejects_any_existing_code(self) -> None:
+        existing = [
+            {
+                "code": "A3F7K9",
+                "used_at": "2026-07-01T00:00:00+09:00",
+                "expires_at": "2026-07-02T00:00:00+09:00",
+            },
+            {
+                "code": "B4G8LA",
+                "used_at": None,
+                "expires_at": "2026-07-02T00:00:00+09:00",
+            },
+        ]
+
+        with patch.object(
+            invitations,
+            "generate_code",
+            side_effect=["A3F7K9", "C5H9MB"],
+        ):
+            assert invitations._generate_unique_code(existing) == "C5H9MB"

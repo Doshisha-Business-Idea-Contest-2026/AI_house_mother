@@ -290,7 +290,7 @@ def push_previous_month_to_all(
         generate a message. Per-parent LINE API errors are caught and
         counted in ``errors``; the batch proceeds to the next recipient.
     """
-    executed_at = datetime.now(JST)
+    executed_at = (now_jst or datetime.now(JST)).astimezone(JST)
     ym = _resolve_target_year_month(now_jst, target_year_month)
 
     state = _load_state()

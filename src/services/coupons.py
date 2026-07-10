@@ -1,7 +1,7 @@
 """Coupon distribution on experience-post milestones (FR-S10).
 
 Every time a student's total experience-post count reaches a new multiple
-of :data:`COUPONS_PER_BATCH` (3, 6, 9, ...), a batch of three coupons is
+of :data:`COUPONS_PER_BATCH` (3, 6, 9, ...), a batch of up to three coupons is
 awarded and pushed as a Flex carousel. Selection is deterministic and
 rotates through the active coupon seed so consecutive milestones hand out
 different coupons; when the seed is exhausted it wraps back to the start.
@@ -37,7 +37,7 @@ def _active_coupons() -> list[dict[str, Any]]:
 
 
 def select_coupons_for_milestone(milestone: int) -> list[dict[str, Any]]:
-    """Return the three coupons to award at ``milestone``.
+    """Return the coupons to award at ``milestone``.
 
     The batch index is ``(milestone // COUPONS_PER_BATCH) - 1`` (0-based:
     milestone 3 → batch 0, 6 → batch 1, ...). Coupons are taken from the
@@ -58,7 +58,8 @@ def select_coupons_for_milestone(milestone: int) -> list[dict[str, Any]]:
         return []
     batch = (milestone // COUPONS_PER_BATCH) - 1
     start = batch * COUPONS_PER_BATCH
-    return [active[(start + i) % len(active)] for i in range(COUPONS_PER_BATCH)]
+    count = min(COUPONS_PER_BATCH, len(active))
+    return [active[(start + i) % len(active)] for i in range(count)]
 
 
 def _append_distribution(
@@ -106,7 +107,7 @@ def award_if_due(
     Computes ``milestone = (count_all // COUPONS_PER_BATCH) * COUPONS_PER_BATCH``
     from the student's total experience-post count. When ``milestone`` is at
     least :data:`COUPONS_PER_BATCH` and greater than the last awarded
-    milestone, three coupons are selected, the milestone and batch are
+    milestone, up to three coupons are selected, the milestone and batch are
     recorded to ``coupon_distributions.json``, and the coupons are returned
     for the caller to push. The monotonically increasing
     ``last_awarded_milestone`` prevents double-awarding the same milestone
