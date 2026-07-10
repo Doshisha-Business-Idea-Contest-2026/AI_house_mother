@@ -26,6 +26,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,6 +38,28 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.init_data import DATA_DIR, INITIAL_FILES  # noqa: E402
 
 logger = logging.getLogger("reset_demo")
+
+SERVICE_NAME = "ai_house_mother.service"
+
+
+def _service_is_running() -> bool:
+    """Return True when the systemd unit is currently active.
+
+    Uses ``systemctl is-active --quiet`` (exit 0 = active). Falls back to
+    False when ``systemctl`` is not installed (dev container, macOS) so
+    this script stays usable outside the deployment host.
+    """
+    if shutil.which("systemctl") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "--quiet", SERVICE_NAME],
+            check=False,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return False
+    return result.returncode == 0
 
 
 def _print_targets(targets: list[tuple[Path, object]]) -> None:
@@ -72,6 +96,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="List the target files without writing anything.",
     )
+    parser.add_argument(
+        "--force-service-active",
+        action="store_true",
+        help=(
+            "Bypass the systemd running-service guard. Overwriting data/*.json "
+            "while the LINE Bot is live can desync in-memory state with the "
+            "files; only use this when you know the risk."
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -87,6 +120,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         print("\n[dry-run] no changes made.")
         return 0
+
+    if _service_is_running() and not args.force_service_active:
+        print(
+            f"\n[ABORT] {SERVICE_NAME} が稼働中です。\n"
+            "  稼働中に data/*.json を上書きすると、in-memory 状態との乖離により\n"
+            "  上書き内容がすぐに戻る/破損する可能性があります。\n"
+            "  先に停止してから再実行してください:\n"
+            f"    sudo systemctl stop {SERVICE_NAME}\n"
+            "    python scripts/reset_demo.py --yes\n"
+            f"    sudo systemctl start {SERVICE_NAME}\n"
+            "  （どうしても稼働中に実行したい場合のみ --force-service-active）"
+        )
+        return 2
 
     if not args.yes and not _confirm():
         print("aborted.")

@@ -75,6 +75,34 @@ deduplicates against the batched YYYY-MM.
 .venv/bin/python scripts/push_monthly_reports.py --now 2026-08-01T09:00:00+09:00
 ```
 
+## Demo reset (pre-presentation)
+
+`scripts/reset_demo.py` wipes every runtime JSON under `data/` (users,
+profiles, posts, invitations, parent_links, session_activities,
+monthly_report_state, coupon_distributions, prize_draws, …) back to its
+empty skeleton. `data/seed/*.json` is never touched.
+
+**Always stop the service first.** The script refuses to run while the
+unit is active because overwriting live JSON while the LINE Bot holds
+state in memory can silently revert or corrupt the file on the next
+write. Use `--force-service-active` only when you know the risk.
+
+```bash
+# 1. Stop the LINE Bot so nothing is holding state
+sudo systemctl stop ai_house_mother.service
+
+# 2. Reset the runtime JSON
+.venv/bin/python scripts/reset_demo.py --yes
+
+# 3. Start the LINE Bot back up
+sudo systemctl start ai_house_mother.service
+sudo systemctl status ai_house_mother.service
+```
+
+Preview the target list without writing anything: `--dry-run`.
+When the service is running the script exits with return code 2 and
+prints the three-step recipe above.
+
 ## Local development
 
 Instead of touching systemd, use `scripts/run_local.sh` on a machine
