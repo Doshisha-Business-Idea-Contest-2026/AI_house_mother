@@ -47,9 +47,10 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 | `temperature` | 0.7 | 提案系は多様性、相談系は決定性のバランス |
 | `top_p` | 0.9 | デフォルト |
 | `max_output_tokens` | 800 | LINE メッセージ 300 文字 + Flex Message データが収まる範囲 |
-| `timeout` (text / 対話 JSON) | 15 秒 | LINE Webhook 30 秒制約に対する安全マージン。`call_gemini` および `answer_life_question` の JSON 応答（`DEFAULT_TIMEOUT_S`） |
-| `timeout` (propose_activities / propose_from_student_efforts) | 20 秒 | 800 output tokens の JSON 応答用に少し余裕を持たせる（`_PROPOSE_TIMEOUT_S`） |
-| `timeout` (`summarize_month`) | 30 秒 | 月次バッチは systemd timer 起動で Webhook 外のため長め（`_BATCH_TIMEOUT_S`） |
+| `timeout` (text / 対話 JSON) | 15 秒 | LINE Webhook 30 秒制約に対する安全マージン。`call_gemini`、`answer_life_question` の JSON 応答、`answer_activity_detail`（`DEFAULT_TIMEOUT_S`） |
+| `timeout` (`propose_activities` / `propose_from_student_efforts`) | 20 秒 | 800 output tokens の JSON 応答用に少し余裕を持たせる（`_PROPOSE_TIMEOUT_S`） |
+| `timeout` (`summarize_month`, Push 経路) | 30 秒 | 月次バッチは systemd timer 起動で Webhook 外のため長め（`_BATCH_TIMEOUT_S`、既定）|
+| `timeout` (`summarize_month`, Pull 経路) | 15 秒 | 保護者「📊 今月のレポート」ボタンは Webhook 同期処理なので `interactive=True` で `DEFAULT_TIMEOUT_S` を使用（詳細は §4.4）|
 | `timeout` (`finalize_post`) | 8 秒 | 確認カード前のインライン処理。既定より厳しめ（`_FINALIZE_TIMEOUT_S`） |
 
 用途別に微調整する（下記各節参照）。**リトライは行わない**（§6.3）。
@@ -340,7 +341,14 @@ cl = genai.GenerativeModel("gemini-2.0-flash-lite")
 - 記号での装飾（絵文字・箇条書き・見出し）は使わない。プレーンテキストのみ。
 ```
 
-**パラメータ**: `temperature: 0.6`, `max_output_tokens: 200`, `timeout: 8s`（`DEFAULT_TIMEOUT_S`）
+**パラメータ**: `temperature: 0.6`, `max_output_tokens: 200`, `timeout`: 呼び出し経路に応じて切り替え（下表）。
+
+| 経路 | 例 | `interactive` | 適用 timeout |
+| --- | --- | --- | --- |
+| Pull (Webhook 同期) | 保護者の「📊 今月のレポート」ボタン → `monthly_report.build_current_month_report` | `True` | 15 秒（`DEFAULT_TIMEOUT_S`）|
+| Push (systemd timer / CLI) | `push_previous_month_to_all` → `monthly_report.build_previous_month_report` | `False`（既定）| 30 秒（`_BATCH_TIMEOUT_S`）|
+
+Pull 経路は LINE Webhook 30 秒制約下で reply_token が満了する前に返す必要があるため短い timeout に切り替える（`services/gemini.py::summarize_month(..., interactive=True)`）。Push 経路は Webhook 外なので余裕を持たせる。
 
 **フォールバック**（`services/gemini.py::summarize_month` 側）:
 

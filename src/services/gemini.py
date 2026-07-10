@@ -384,6 +384,8 @@ def summarize_month(
     year_month: str,
     posts_month: list[dict[str, Any]],
     usage: dict[str, int],
+    *,
+    interactive: bool = False,
 ) -> str:
     """Return the closing AI comment for the parent monthly report (FR-P3).
 
@@ -399,6 +401,12 @@ def summarize_month(
         posts_month: Current-month shared posts (only ``title`` is used).
         usage: Current-month counters (``life`` / ``activity`` / ``post``
             / ``profile``, missing keys treated as 0).
+        interactive: ``True`` when the call is served on the LINE Webhook
+            path (the parent's "📊 今月のレポート" button — Pull path).
+            Uses the shorter :data:`DEFAULT_TIMEOUT_S` so the reply fits
+            inside the 30 s webhook ceiling. Defaults to ``False`` for
+            the systemd-timer batch (Push path), which stays on the
+            longer :data:`_BATCH_TIMEOUT_S`.
 
     Returns:
         A short plain-text closing line (fallback or Gemini output).
@@ -417,8 +425,9 @@ def summarize_month(
         posts=posts_month,
         usage=usage,
     )
+    timeout = DEFAULT_TIMEOUT_S if interactive else _BATCH_TIMEOUT_S
     answer = call_gemini(
-        prompt, temperature=0.6, max_output_tokens=200, timeout=_BATCH_TIMEOUT_S
+        prompt, temperature=0.6, max_output_tokens=200, timeout=timeout
     )
     if not answer:
         return _MONTH_SUMMARY_FALLBACK
