@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -40,16 +40,19 @@ def save_user(line_user_id: str, role: Role) -> None:
     if role not in ("student", "parent"):
         raise ValueError(f"invalid role: {role!r}")
 
-    data = load_json(_FILE, default=_EMPTY)
     now = datetime.now(JST).isoformat()
-    existing = data["users"].get(line_user_id, {})
-    data["users"][line_user_id] = {
-        "line_user_id": line_user_id,
-        "role": role,
-        "created_at": existing.get("created_at", now),
-        "updated_at": now,
-    }
-    save_json(_FILE, data)
+    # Atomically preserve created_at while refreshing updated_at, so a
+    # second concurrent registration cannot flip the timestamps
+    # (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        data.setdefault("users", {})
+        existing = data["users"].get(line_user_id, {})
+        data["users"][line_user_id] = {
+            "line_user_id": line_user_id,
+            "role": role,
+            "created_at": existing.get("created_at", now),
+            "updated_at": now,
+        }
 
 
 def get_role(line_user_id: str) -> Role | None:

@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -57,31 +57,34 @@ def link(parent_user_id: str, student_user_id: str) -> dict[str, Any]:
     Returns:
         The stored (or updated) link record.
     """
-    data = _load()
     now = _now_iso()
-    for row in data["links"]:
-        if (
-            row["parent_user_id"] == parent_user_id
-            and row["student_user_id"] == student_user_id
-        ):
-            row["linked_at"] = now
-            row["active"] = True
-            save_json(_FILE, data)
-            logger.info(
-                "parent_link refreshed parent=%s student=%s",
-                parent_user_id[:8],
-                student_user_id[:8],
-            )
-            return row
+    # Wrap the "find-or-append" walk under a lock so a re-tap of the
+    # link button from another LINE session cannot append a duplicate
+    # row (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default=_EMPTY) as data:
+        if "links" not in data:
+            data["links"] = []
+        for row in data["links"]:
+            if (
+                row["parent_user_id"] == parent_user_id
+                and row["student_user_id"] == student_user_id
+            ):
+                row["linked_at"] = now
+                row["active"] = True
+                logger.info(
+                    "parent_link refreshed parent=%s student=%s",
+                    parent_user_id[:8],
+                    student_user_id[:8],
+                )
+                return row
 
-    record: dict[str, Any] = {
-        "parent_user_id": parent_user_id,
-        "student_user_id": student_user_id,
-        "linked_at": now,
-        "active": True,
-    }
-    data["links"].append(record)
-    save_json(_FILE, data)
+        record: dict[str, Any] = {
+            "parent_user_id": parent_user_id,
+            "student_user_id": student_user_id,
+            "linked_at": now,
+            "active": True,
+        }
+        data["links"].append(record)
     logger.info(
         "parent_link created parent=%s student=%s",
         parent_user_id[:8],

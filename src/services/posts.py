@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -219,26 +219,34 @@ def add_post(
     # words when normalization was skipped or failed (docs/05 §4.3).
     period_for_body = period_v or period_raw_v
 
-    data = _load()
-    post_id = _next_post_id(data["posts"])
-    record: dict[str, Any] = {
-        "post_id": post_id,
-        "line_user_id": line_user_id,
-        "category": category,
-        "title": title.strip()[:MAX_TITLE_LEN],
-        "period_raw": period_raw_v,
-        "period": period_v,
-        "summary": summary_v,
-        "learned": learned_v,
-        "regret": regret_v,
-        "advice": advice_v,
-        "body": compose_body(period_for_body, summary_v, learned_v, regret_v, advice_v),
-        "area": _normalize_area(area),
-        "share_with_parent": bool(share_with_parent),
-        "created_at": datetime.now(JST).isoformat(),
-    }
-    data["posts"].append(record)
-    save_json(_FILE, data)
+    # Sequential id + append under a single lock so a second concurrent
+    # writer cannot mint P00001 twice or clobber the other's append
+    # (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default=None) as data:
+        if not isinstance(data, dict):
+            data = {}
+        if "posts" not in data:
+            data["posts"] = []
+        post_id = _next_post_id(data["posts"])
+        record: dict[str, Any] = {
+            "post_id": post_id,
+            "line_user_id": line_user_id,
+            "category": category,
+            "title": title.strip()[:MAX_TITLE_LEN],
+            "period_raw": period_raw_v,
+            "period": period_v,
+            "summary": summary_v,
+            "learned": learned_v,
+            "regret": regret_v,
+            "advice": advice_v,
+            "body": compose_body(
+                period_for_body, summary_v, learned_v, regret_v, advice_v
+            ),
+            "area": _normalize_area(area),
+            "share_with_parent": bool(share_with_parent),
+            "created_at": datetime.now(JST).isoformat(),
+        }
+        data["posts"].append(record)
     logger.info(
         "post_added user=%s post_id=%s category=%s share=%s",
         line_user_id[:8],

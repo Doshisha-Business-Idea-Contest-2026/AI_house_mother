@@ -23,7 +23,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from src.services import seed
-from src.services.storage import load_json, save_json
+from src.services.storage import locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -124,17 +124,19 @@ def record_interest(user_id: str, sponsor_id: str) -> None:
         user_id: The LINE user id of the tapping student.
         sponsor_id: The tapped sponsored entry's id.
     """
-    data = load_json(_FILE, default={"events": []})
-    if "events" not in data:
-        data["events"] = []
-    data["events"].append(
-        {
-            "sponsor_id": sponsor_id,
-            "user_hash": _hash_user_id(user_id),
-            "clicked_at": datetime.now(JST).isoformat(),
-        }
-    )
-    save_json(_FILE, data)
+    # Append-only log, but two near-simultaneous taps (Flex carousel
+    # re-tap during network hiccup) can race — the lock guarantees both
+    # events land (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default={"events": []}) as data:
+        if "events" not in data:
+            data["events"] = []
+        data["events"].append(
+            {
+                "sponsor_id": sponsor_id,
+                "user_hash": _hash_user_id(user_id),
+                "clicked_at": datetime.now(JST).isoformat(),
+            }
+        )
     logger.info(
         "Sponsored interest recorded: sponsor=%s user=%s",
         sponsor_id,

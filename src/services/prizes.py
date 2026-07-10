@@ -21,7 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from src.services import seed
-from src.services.storage import load_json, save_json
+from src.services.storage import locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -64,23 +64,24 @@ def _record_draw(
     .codex/rules/project_rules.md).
     """
     drawn_at = (now_jst or datetime.now(JST)).astimezone(JST).isoformat()
-    data = load_json(_FILE, default={})
-    if not isinstance(data, dict):
-        data = {}
-    user_bucket = data.get(user_id, {})
-    draws = user_bucket.get("draws", [])
-    draws.append(
-        {
-            "rank": rank,
-            "prize_id": prize_id,
-            "result": result,
-            "seed": seed_val,
-            "drawn_at": drawn_at,
-        }
-    )
-    user_bucket["draws"] = draws
-    data[user_id] = user_bucket
-    save_json(_FILE, data)
+    # Append under a lock so a parallel post-finalise + scripts/trigger
+    # invocation cannot lose a draw record (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default={}) as data:
+        if not isinstance(data, dict):
+            data = {}
+        user_bucket = data.get(user_id, {})
+        draws = user_bucket.get("draws", [])
+        draws.append(
+            {
+                "rank": rank,
+                "prize_id": prize_id,
+                "result": result,
+                "seed": seed_val,
+                "drawn_at": drawn_at,
+            }
+        )
+        user_bucket["draws"] = draws
+        data[user_id] = user_bucket
     logger.info(
         "Prize draw: user=%s rank=%s prize=%s result=%s",
         user_id[:8],

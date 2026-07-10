@@ -54,6 +54,33 @@ data/
 - 実装は `src/services/storage.py` の `load_json()` / `save_json()` を参照。
 - MVP 期間は uvicorn を `--workers 1` で起動するため、単一プロセス内での競合は起きない。将来スケールする際も `fcntl` はプロセス間で機能するので、ワーカー数を増やしても壊れない。
 
+### 3.1 `locked_edit` による read → modify → write の原子化
+
+素の `load_json` / `save_json` はそれぞれ独立にロックを取り、**すぐに解放**する。 読み書きの間に別プロセス（もう 1 台の LINE 端末、`scripts/trigger_*` の手動 CLI、systemd 月次バッチなど）が割り込むと、両者が同じ古い状態を読んでそれぞれ書き戻し、**先に書いた側の変更が消える (lost update)**。
+
+Issue #45 で報告された派生バグ（`posts` の `P00001` 採番衝突、`coupons.award_if_due` の重複配布、`usage_stats.record` の加算消失、`prizes._record_draw` の抽選履歴消失、`parent_links.link` の重複行）はいずれもこの窓が原因。
+
+これを塞ぐため、書き込みを含む read → modify → write は **`storage.locked_edit()`** で包む:
+
+```python
+from src.services.storage import locked_edit
+
+with locked_edit("posts.json", default={"posts": []}) as data:
+    data["posts"].append(new_post)
+    # ここで抜けた瞬間に save_json が走る
+```
+
+- `data/.locks/<file>.lock` を **sidecar ロックファイル**として開き、その fd に `fcntl.flock(LOCK_EX)` を掛ける。
+- `os.replace` が宛先の inode を差し替えても sidecar は独立のファイルなのでロックが失効しない。
+- 例外送出時は `save_json` を呼ばず、ロックのみ解放する（部分書き込みなし）。
+- `DATA_DIR` を差し替えるテストにも自動追従（`DATA_DIR / ".locks"` を関数内で毎回評価）。
+
+**利用ポリシー**:
+
+- 書き込みを含むフローは `locked_edit` を使う（`posts.add_post` / `coupons.award_if_due` / `usage_stats.record` / `prizes._record_draw` / `parent_links.link` / `users.save_user` / `profiles.save_profile` / `invitations.issue_code` / `invitations.consume` / `sponsored.record_interest` / `activity_store.remember`）。
+- 読み取り専用の経路（`posts.list_*` / `usage_stats.get_month` / `parent_links.list_*` など）はロック開放が短くて済むよう **`load_json` を継続**して使う。
+- **完全上書き**の `monthly_report._record_batch` は read → modify のサイクルを持たないため `save_json` を単独で使ってよい。
+
 **参考コード** (`src/services/storage.py` より抜粋):
 
 ```python

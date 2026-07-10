@@ -184,7 +184,7 @@ AI_house_mother/
 | `gemini.py` | Gemini API 呼び出しラッパー、リトライ、エラーハンドリング |
 | `line_reply.py` | LINE Messaging API への応答送信（reply / push） |
 | `session.py` | インメモリセッション管理（10 分 TTL） |
-| `storage.py` | `data/*.json` の読み書き（fcntl ロック、atomic write） |
+| `storage.py` | `data/*.json` の読み書き（fcntl ロック、atomic write）。書き込みを含む read → modify → write は `locked_edit()` コンテキストマネージャで sidecar ロック (`data/.locks/<file>.lock`) を取得して原子化する。詳細は `docs/05_data_model.md §3.1` |
 | `prompts.py` | System Prompt、機能別プロンプトテンプレート |
 | `invitations.py` | 招待コード発行・検証・使用ロジック |
 | `monthly_report.py` | 月次サマリー生成（対象月の投稿抽出） |

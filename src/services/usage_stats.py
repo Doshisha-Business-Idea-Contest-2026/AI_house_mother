@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.services.storage import load_json, save_json
+from src.services.storage import load_json, locked_edit
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +59,23 @@ def record(user_id: str, event_type: str, now_jst: datetime | None = None) -> No
     ref = (now_jst or datetime.now(JST)).astimezone(JST)
     year_month = _year_month(ref)
 
-    data: dict[str, Any] = load_json(_FILE, default={})
-    user_bucket = data.setdefault(user_id, {})
-    month_bucket = user_bucket.setdefault(year_month, _empty_month())
-    for event in EVENT_TYPES:
-        month_bucket.setdefault(event, 0)
-    month_bucket[event_type] = int(month_bucket[event_type]) + 1
-    save_json(_FILE, data)
+    # Increment under an exclusive lock — a plain read → modify → write
+    # loses the counter's other update on parallel activity + life
+    # bursts (docs/05 §3.1, Issue #45).
+    with locked_edit(_FILE, default={}) as data:
+        user_bucket = data.setdefault(user_id, {})
+        month_bucket = user_bucket.setdefault(year_month, _empty_month())
+        for event in EVENT_TYPES:
+            month_bucket.setdefault(event, 0)
+        month_bucket[event_type] = int(month_bucket[event_type]) + 1
+        new_count = month_bucket[event_type]
 
     logger.info(
         "usage_stats recorded user=%s event=%s year_month=%s count=%d",
         user_id[:8],
         event_type,
         year_month,
-        month_bucket[event_type],
+        new_count,
     )
 
 
