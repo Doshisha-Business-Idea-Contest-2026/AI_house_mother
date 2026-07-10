@@ -65,7 +65,7 @@ class TestRequireRoleWrongRoleAttachesQuickReply:
             patch.object(message_mod, "build_welcome_message") as welcome_mock,
         ):
             users_mock.get_role.return_value = None
-            welcome_mock.return_value = ("alt", "contents", "qr")
+            welcome_mock.return_value = ("alt", "contents", "welcome-qr")
 
             ok = message_mod._require_role(
                 _message_event("Unew001"), "Unew001", "student"
@@ -73,6 +73,41 @@ class TestRequireRoleWrongRoleAttachesQuickReply:
 
             assert ok is False
             flex_mock.assert_called_once()
+            # Lock in that the welcome QR really rides along, otherwise
+            # the whole point of #42 could silently regress on this
+            # branch.
+            _, kwargs = flex_mock.call_args
+            assert kwargs.get("quick_reply") == "welcome-qr"
+
+    def test_wrong_role_symmetric_student_calling_parent_op(self) -> None:
+        """Mirror case of ``test_wrong_role_reply_has_quick_reply_for_actual_role``.
+
+        Prevents a ``label = "学生" if required == "student" else "保護者"``
+        left/right swap or a role/required argument mixup from being
+        detected only on one side of the pair.
+        """
+        from src.handlers import message as message_mod
+
+        with (
+            patch.object(message_mod, "users") as users_mock,
+            patch.object(message_mod, "reply_text") as reply_mock,
+            patch.object(message_mod, "main_menu_quick_reply") as qr_mock,
+        ):
+            users_mock.get_role.return_value = "student"
+            qr_mock.return_value = "STUDENT_MENU_QR"
+
+            ok = message_mod._require_role(
+                _message_event("Ustudent001"), "Ustudent001", "parent"
+            )
+
+            assert ok is False
+            reply_mock.assert_called_once()
+            args, kwargs = reply_mock.call_args
+            assert kwargs.get("quick_reply") == "STUDENT_MENU_QR"
+            qr_mock.assert_called_once_with("student")
+            # And confirm the label baked into the copy targets the
+            # right side of the ternary.
+            assert "保護者アカウント向けです" in args[1]
 
 
 class TestProfilePostbackExpiredAttachesQuickReply:
@@ -145,3 +180,7 @@ class TestProfileConfirmYesReTapAttachesQuickReply:
             reply_mock.assert_called_once()
             _, kwargs = reply_mock.call_args
             assert kwargs.get("quick_reply") == "STUDENT_MENU_QR"
+            # Session state must not be cleared on the re-tap: the
+            # student is mid-flow and losing their profile.grade context
+            # would strand them. Pins #93 (audit L2).
+            session_mock.clear_state.assert_not_called()
