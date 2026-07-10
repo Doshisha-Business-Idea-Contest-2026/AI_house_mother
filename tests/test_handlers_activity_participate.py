@@ -73,6 +73,7 @@ class TestParticipatedEntersPostWizard:
                 _postback_event("Ustudent-part-002"), "key-abc"
             )
 
+            resolve_mock.assert_called_once_with("key-abc", "Ustudent-part-002")
             session_mock.set_state.assert_called_once()
             args, kwargs = session_mock.set_state.call_args
             assert args[0] == "Ustudent-part-002"

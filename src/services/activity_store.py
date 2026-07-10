@@ -1,7 +1,7 @@
 """Short-term persistence for activity proposals.
 
 Whenever the bot sends an activity carousel we index the proposals by a
-short hash of the title so the follow-up postbacks (``activity:detail:*``,
+short user-scoped hash so the follow-up postbacks (``activity:detail:*``,
 ``activity:participated:*``) can resolve back to the original dict even
 after the in-memory session times out.
 
@@ -23,9 +23,10 @@ _FILE = "session_activities.json"
 TTL_SECONDS = 30 * 60  # 30 minutes
 
 
-def make_key(title: str) -> str:
-    """Return an 8-character stable hash for ``title``."""
-    return hashlib.sha1(title.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+def make_key(user_id: str, title: str) -> str:
+    """Return an 8-character stable hash scoped to ``user_id``."""
+    payload = f"{user_id}\0{title}"
+    return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
 
 
 def _load() -> dict[str, Any]:
@@ -58,7 +59,7 @@ def remember(user_id: str, activities: list[dict[str, Any]]) -> list[str]:
         _prune(data)
         for activity in activities:
             title = str(activity.get("title") or "activity")
-            key = make_key(title)
+            key = make_key(user_id, title)
             data["activities"][key] = {
                 "user_id": user_id,
                 "activity": activity,
@@ -68,11 +69,19 @@ def remember(user_id: str, activities: list[dict[str, Any]]) -> list[str]:
     return keys
 
 
-def resolve(key: str) -> dict[str, Any] | None:
-    """Return the activity dict for ``key`` if still fresh."""
+def resolve(key: str, user_id: str) -> dict[str, Any] | None:
+    """Return the activity dict for ``key`` if still fresh and user-scoped."""
     data = _load()
     _prune(data)
     entry = data["activities"].get(key)
     if entry is None:
+        return None
+    if entry.get("user_id") != user_id:
+        logger.warning(
+            "activity_store user mismatch key=%s expected=%s actual=%s",
+            key,
+            user_id[:8],
+            str(entry.get("user_id", ""))[:8],
+        )
         return None
     return entry.get("activity")
