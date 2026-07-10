@@ -409,7 +409,7 @@ MVP の 3〜4 日分の実装タスクを、順序と完了基準込みで分解
 
 ### T4.11 Loading Indicator 実装（中間応答の UX 磨き込み）
 
-**目的**: LINE Messaging API の Loading Indicator（`docs/04_functional_spec.md §3.6`）を活用し、Gemini 応答待ちの体感待機時間を短縮する。テキストの中間応答（「少し考えます…」等）を削除し、「Bot が入力中…」のアニメーションに置き換える。
+**目的**: LINE Messaging API の Loading Indicator（`docs/04_functional_spec.md §3.5`）を活用し、Gemini 応答待ちの体感待機時間を短縮する。テキストの中間応答（「少し考えます…」等）を削除し、「Bot が入力中…」のアニメーションに置き換える。
 
 **成果物**:
 
