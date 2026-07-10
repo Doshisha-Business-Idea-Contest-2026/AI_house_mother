@@ -587,6 +587,12 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
         return
 
     title = (activity.get("title") or "").strip()
+    # activity_store entries occasionally lack a title (older records or
+    # a Gemini fallback that dropped the field). Persist the real value
+    # in source_activity_title so downstream renderers can decide, but
+    # substitute a neutral phrase in the immediate reply so the student
+    # never reads "「」への参加を記録します".
+    display_title = title if title else "この活動"
     session.set_state(
         user_id,
         "post.category",
@@ -596,7 +602,7 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
     reply_text(
         event.reply_token,
         (
-            f"「{title}」への参加を記録します！✨\n"
+            f"「{display_title}」への参加を記録します！✨\n"
             "まずはカテゴリを選んでください。\n"
             "（途中でやめる場合は「キャンセル」と送ってください）"
         ),
