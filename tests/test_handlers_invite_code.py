@@ -28,6 +28,19 @@ class TestNormalizeCode:
     def test_hyphen_grouping_is_stripped(self) -> None:
         assert _normalize_code("A3F-7K9") == "A3F7K9"
 
+    def test_fullwidth_hyphen_grouping_is_stripped(self) -> None:
+        # U+FF0D FULLWIDTH HYPHEN-MINUS collapses to ASCII '-' under
+        # NFKC and is then removed by the ASCII hyphen strip, so the
+        # code lands in canonical form.
+        assert _normalize_code("Ａ３Ｆ－７Ｋ９") == "A3F7K9"
+
+    def test_em_dash_grouping_is_not_stripped(self) -> None:
+        # U+2014 EM DASH does not decompose under NFKC. That is a
+        # deliberate line in the sand: only visually plausible
+        # ASCII-hyphen inputs are absorbed, other dashes fall through
+        # to the format check so the parent sees "invalid_format".
+        assert _normalize_code("A3F—7K9") == "A3F—7K9"
+
     def test_ascii_spaces_between_chars_are_stripped(self) -> None:
         assert _normalize_code("A 3 F 7 K 9") == "A3F7K9"
 
@@ -50,6 +63,15 @@ class TestNormalizedCodeIsAcceptedByValidator:
 
     def test_hyphenated_input_becomes_valid(self) -> None:
         assert _is_valid_format(_normalize_code("A3F-7K9")) is True
+
+    def test_fullwidth_hyphenated_input_becomes_valid(self) -> None:
+        assert _is_valid_format(_normalize_code("Ａ３Ｆ－７Ｋ９")) is True
+
+    def test_em_dash_input_stays_invalid(self) -> None:
+        # em-dash is not decomposed by NFKC, so the string keeps 7
+        # characters and the format check rejects it. The parent gets
+        # the usual invalid_format response and a chance to retry.
+        assert _is_valid_format(_normalize_code("A3F—7K9")) is False
 
     def test_spaced_input_becomes_valid(self) -> None:
         assert _is_valid_format(_normalize_code("A 3 F 7 K 9")) is True
