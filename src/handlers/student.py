@@ -40,7 +40,6 @@ from src.services import (
 from src.services.line_reply import (
     push_flex,
     push_text,
-    push_texts,
     reply_flex,
     reply_text,
     show_loading,
@@ -763,9 +762,9 @@ def handle_life_consultation(event: MessageEvent) -> None:
     medical_followup_shown = zero_context and medical_intent
 
     # docs/06 §4.2 / docs/04 §4.4: strip Gemini's Markdown residue from each
-    # part, then lay them out as up to three bubbles (empathy / answer /
-    # closing) sent as one push. In Zero-context the disclaimer leads and the
-    # empathy line is dropped; a medical followup is appended to the closing.
+    # part, then join empathy / answer / closing with one blank line into a
+    # single text message. In Zero-context the disclaimer leads and the empathy
+    # line is dropped; a medical followup is appended at the end.
     empathy = text_format.collapse_blank_lines(
         text_format.normalize_markdown(parts.get("empathy", ""))
     )
@@ -775,33 +774,32 @@ def handle_life_consultation(event: MessageEvent) -> None:
     closing = text_format.collapse_blank_lines(
         text_format.normalize_markdown(parts.get("closing", ""))
     )
-    if medical_followup_shown:
-        closing = text_format.join_blocks([closing, prompts.MEDICAL_FOLLOWUP])
 
-    bubbles: list[str] = []
+    blocks: list[str] = []
     if disclaimer_shown:
-        bubbles.append(prompts.ZERO_CONTEXT_DISCLAIMER.strip())
+        blocks.append(prompts.ZERO_CONTEXT_DISCLAIMER)
     elif empathy:
-        bubbles.append(empathy)
-    bubbles.append(answer)
-    if closing:
-        bubbles.append(closing)
+        blocks.append(empathy)
+    blocks.append(answer)
+    blocks.append(closing)
+    if medical_followup_shown:
+        blocks.append(prompts.MEDICAL_FOLLOWUP)
+    final = text_format.join_blocks(blocks)
 
     logger.info(
         "life_consultation user=%s total_hits=%d zero_context=%s "
-        "disclaimer_shown=%s medical_followup_shown=%s bubbles=%d "
+        "disclaimer_shown=%s medical_followup_shown=%s "
         "student_posts_hits=%d matched_categories=%s",
         user_id[:8] if user_id else "?",
         total_hits,
         zero_context,
         disclaimer_shown,
         medical_followup_shown,
-        len(bubbles),
         len(result["student_posts"]),
         sorted(result["matched_categories"]),
     )
 
-    push_texts(user_id, bubbles, quick_reply=_life_quick_reply())
+    push_text(user_id, final, quick_reply=_life_quick_reply())
     # Keep the session so follow-up questions are still routed to life consultation.
     session.set_state(user_id, "life.waiting")
 

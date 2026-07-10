@@ -110,46 +110,6 @@ def push_text(
             raise
 
 
-def push_texts(
-    line_user_id: str,
-    texts: list[str],
-    quick_reply: Optional[QuickReply] = None,
-    raise_on_error: bool = False,
-) -> None:
-    """Push several text messages to ``line_user_id`` as one push.
-
-    The messages arrive as separate chat bubbles but only trigger a single
-    push notification, which keeps a split reply (e.g. the life-consultation
-    empathy / body / closing bubbles, see docs/04 §4.4) from feeling spammy.
-
-    Args:
-        line_user_id: Recipient LINE user id.
-        texts: Message bodies in display order. Empty or whitespace-only
-            entries are dropped; if nothing remains, no push is sent.
-        quick_reply: Optional Quick Reply attached to the *last* message.
-        raise_on_error: When ``True`` re-raise any exception raised by the
-            LINE SDK so the caller can count failures. Defaults to ``False``
-            for the fire-and-forget style used by the interactive handlers.
-    """
-    bodies = [text for text in texts if text and text.strip()]
-    # The LINE Messaging API accepts at most 5 messages per push request.
-    bodies = bodies[:5]
-    if not bodies:
-        return
-
-    messages: list[TextMessage] = [TextMessage(text=body) for body in bodies]
-    if quick_reply is not None:
-        messages[-1].quick_reply = quick_reply
-    try:
-        with ApiClient(configuration) as api_client:
-            cl = MessagingApi(api_client)
-            cl.push_message(PushMessageRequest(to=line_user_id, messages=messages))
-    except Exception:
-        logger.exception("push_texts failed")
-        if raise_on_error:
-            raise
-
-
 def push_flex(
     line_user_id: str,
     alt_text: str,
