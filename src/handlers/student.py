@@ -567,7 +567,17 @@ def handle_activity_detail(event: PostbackEvent, key: str) -> None:
 
 
 def handle_activity_participated(event: PostbackEvent, key: str) -> None:
-    """Handle the "参加した" button. Acks the tap and points at ✏️ 経験を投稿."""
+    """Enter the FR-S6 post wizard, carrying the source activity title.
+
+    Wiring "参加した" straight into the post flow is what ``docs/04 §4.3``
+    calls for. Only the activity title is stashed in the session context
+    (as ``source_activity_title`` / ``source_activity_key``) — every
+    other field (category, period, summary, …) is still filled by the
+    student in the normal wizard so nothing gets AI-guessed. The final
+    confirmation card echoes the source activity so the student can see
+    which recommendation this record came from before pressing send.
+    """
+    user_id = event.source.user_id
     activity = activity_store.resolve(key)
     if activity is None:
         reply_text(
@@ -577,13 +587,21 @@ def handle_activity_participated(event: PostbackEvent, key: str) -> None:
         )
         return
 
+    title = (activity.get("title") or "").strip()
+    session.set_state(
+        user_id,
+        "post.category",
+        source_activity_title=title,
+        source_activity_key=key,
+    )
     reply_text(
         event.reply_token,
         (
-            f"「{activity.get('title', '')}」に参加した記録を受け付けました！✨\n"
-            "詳しく投稿したい場合は「✏️ 経験を投稿」から記録できます。"
+            f"「{title}」への参加を記録します！✨\n"
+            "まずはカテゴリを選んでください。\n"
+            "（途中でやめる場合は「キャンセル」と送ってください）"
         ),
-        quick_reply=_activity_quick_reply(),
+        quick_reply=post_category_quick_reply(),
     )
 
 
@@ -1146,7 +1164,11 @@ def _build_post_confirmation_text(ctx: dict[str, Any]) -> str:
     else:
         period_display = "（スキップ）"
 
+    source_title = (ctx.get("source_activity_title") or "").strip()
+    source_line = f"🔗 参照した活動: 「{source_title}」\n\n" if source_title else ""
+
     return (
+        f"{source_line}"
         "内容を確認してください:\n"
         f"📂 カテゴリ: {category_label}\n"
         f"📝 タイトル（AI 提案）: {ctx.get('title', '')}\n"
