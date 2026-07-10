@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 import random
-import time
 from typing import Any
 
 import google.generativeai as genai
@@ -28,9 +27,18 @@ from src.services import posts, prompts, seed
 
 logger = logging.getLogger(__name__)
 
-# LINE Webhook has a 30 s hard timeout. We stay just under that so a hung
-# call still lets the router return 200 before the platform retries.
-DEFAULT_TIMEOUT_S = 28
+# LINE Webhook has a 30 s hard timeout. Even a single retry has to fit,
+# so we keep the per-call budget well under half (docs/06 §2.4). The
+# Loading Indicator (max 60 s) covers UX while the request is in flight,
+# and any failure falls back immediately — no retry loop.
+DEFAULT_TIMEOUT_S = 15
+# JSON "propose activities" style calls use 800 output tokens and stream
+# a fuller response; we give them slightly more budget while still fitting
+# under the webhook ceiling.
+_PROPOSE_TIMEOUT_S = 20
+# Monthly summary runs from a systemd timer (out of the webhook path)
+# so it can wait longer than the interactive calls.
+_BATCH_TIMEOUT_S = 30
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 500
 
@@ -111,33 +119,33 @@ def call_gemini(
 ) -> str:
     """Send a plain text prompt and return the text response.
 
-    Returns an empty string if the API fails after one retry.
+    One attempt only — the LINE Webhook 30 s ceiling means a retry
+    couldn't fit even at the reduced timeout, and doubling up on a
+    ResourceExhausted / DeadlineExceeded reliably reproduces the same
+    error. Any failure returns an empty string so the caller can fall
+    back to a static message (docs/06 §6.3).
     """
     if GEMINI_MOCK_MODE:
         logger.info("[GEMINI_MOCK] call_gemini short-circuited")
         return "（mock モードのため実際の応答はありません）"
 
     cl = _build_client()
-    for attempt in (1, 2):
-        try:
-            response = cl.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": max_output_tokens,
-                },
-                request_options={"timeout": timeout},
-            )
-            return (response.text or "").strip()
-        except gexc.ResourceExhausted:
-            logger.warning("Gemini rate limit hit (attempt %d)", attempt)
-            time.sleep(5)
-        except gexc.DeadlineExceeded:
-            logger.warning("Gemini timeout (attempt %d)", attempt)
-            time.sleep(1)
-        except Exception:
-            logger.exception("Gemini call failed on attempt %d", attempt)
-            break
+    try:
+        response = cl.generate_content(
+            prompt,
+            generation_config={
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
+            },
+            request_options={"timeout": timeout},
+        )
+        return (response.text or "").strip()
+    except gexc.ResourceExhausted:
+        logger.warning("[GEMINI_FALLBACK] rate limit on call_gemini")
+    except gexc.DeadlineExceeded:
+        logger.warning("[GEMINI_FALLBACK] timeout on call_gemini")
+    except Exception:
+        logger.exception("[GEMINI_FALLBACK] call_gemini failed")
     return ""
 
 
@@ -179,7 +187,7 @@ def propose_activities(
                 "response_mime_type": "application/json",
                 "response_schema": _ACTIVITY_JSON_SCHEMA,
             },
-            request_options={"timeout": DEFAULT_TIMEOUT_S},
+            request_options={"timeout": _PROPOSE_TIMEOUT_S},
         )
         raw = (response.text or "").strip()
         activities = _parse_activity_json(raw)
@@ -243,7 +251,7 @@ def propose_from_student_efforts(
                 "response_mime_type": "application/json",
                 "response_schema": _ACTIVITY_JSON_SCHEMA,
             },
-            request_options={"timeout": DEFAULT_TIMEOUT_S},
+            request_options={"timeout": _PROPOSE_TIMEOUT_S},
         )
         raw = (response.text or "").strip()
         activities = _parse_activity_json(raw)
@@ -410,7 +418,7 @@ def summarize_month(
         usage=usage,
     )
     answer = call_gemini(
-        prompt, temperature=0.6, max_output_tokens=200, timeout=DEFAULT_TIMEOUT_S
+        prompt, temperature=0.6, max_output_tokens=200, timeout=_BATCH_TIMEOUT_S
     )
     if not answer:
         return _MONTH_SUMMARY_FALLBACK
