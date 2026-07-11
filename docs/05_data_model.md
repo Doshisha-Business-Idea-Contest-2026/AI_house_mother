@@ -444,6 +444,8 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 
 **カテゴリ**: `posts.json` と同じ。
 
+**なお、実在化データ（areas / events / stores）は LINE チャットからの自動蓄積の対象外である**。追加は `Claude 知識ベースでドラフト → kmchan verify` の手動運用（PR #16）に限定し、`data/seed/{areas,events,stores}.json` は起動時に読み取り専用でロードされる。判断根拠と論点は `docs/02_mvp_scope.md §7-9` および Issue #22 を参照。
+
 ### 4.10 session_activities.json（ランタイム、活動提案の短期永続化）
 
 やりたいこと相談（FR-S4）で Gemini が返した提案 2〜3 件を、後続の「詳しく聞く」「参加した」postback が拾えるように 30 分だけ保持する。セッション（10 分 TTL）よりも長い TTL を持つ理由と実装方針は `docs/04_functional_spec.md §4.3` 参照。
@@ -1044,3 +1046,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-09 | クーポン配布（FR-S10）の docs-first: §4.15 coupons.json（seed、架空。鮮度注記でなく `valid_until` を持つ設計判断を明記）と §4.16 coupon_distributions.json（ランタイム、配布履歴・`last_awarded_milestone` 重複防止）を新設、§2 ツリー・gitignore・init 対象を 10 種に更新 | kmch4n |
 | 2026-07-10 | プレゼントくじ引き（FR-S11）の docs-first: §4.17 prizes.json（seed、等級 `rank` 付き）と §4.18 prize_draws.json（ランタイム、抽選履歴・等級/はずれ・**PII 非収集**・抽選 seed 保持。応募口数 `entries` は廃止）を新設、§2 ツリー・gitignore・init 対象を 11 種に更新 | kmch4n |
 | 2026-07-10 | §4.17 prizes.json に `valid_until`（有効期限ダミー）・`note`（利用条件）を追加、2 等を「地元名店 ペアお食事券」に変更（当落 Flex の情報カード表示に対応） | kmch4n |
+| 2026-07-11 | §4.9 senior_posts.json 末尾に「実在化データ（areas / events / stores）は LINE チャットからの自動蓄積の対象外」cross-reference を追加。Issue #22 の意思決定を `docs/02_mvp_scope.md §7-9` に集約 | kmch4n |
