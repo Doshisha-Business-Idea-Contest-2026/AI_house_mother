@@ -61,17 +61,23 @@ def _load() -> dict[str, Any]:
 def is_expired(expires_at_iso: str) -> bool:
     """Return ``True`` when ``expires_at_iso`` is in the past.
 
-    Malformed strings (``ValueError`` from :func:`datetime.fromisoformat`)
-    and naive datetimes that cannot be compared to the JST-aware clock
-    (``TypeError``) are both treated as expired so callers never see the
-    exception propagate.
+    Naive datetimes (no ``tzinfo``) are completed as JST and compared
+    against the JST-aware clock with a WARNING log, so external writes
+    or tests that persist ``datetime.now().isoformat()`` behave the same
+    as the ``_iso(_now_jst())`` produced by :func:`issue_code` (Issue
+    #57). Malformed strings raise a ``ValueError`` from
+    :func:`datetime.fromisoformat` and are treated as expired so callers
+    never see the exception propagate.
     """
     try:
         expires_at = datetime.fromisoformat(expires_at_iso)
-        return expires_at <= _now_jst()
     except (ValueError, TypeError):
-        logger.warning("Invalid or naive expires_at: %s", expires_at_iso)
+        logger.warning("Invalid expires_at: %s", expires_at_iso)
         return True
+    if expires_at.tzinfo is None:
+        logger.warning("Naive expires_at treated as JST: %s", expires_at_iso)
+        expires_at = expires_at.replace(tzinfo=JST)
+    return expires_at <= _now_jst()
 
 
 def generate_code() -> str:

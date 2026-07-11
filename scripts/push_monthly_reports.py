@@ -1,9 +1,14 @@
 """Systemd-timer entrypoint for the monthly parent summary push.
 
 Runs :func:`monthly_report.push_previous_month_to_all` once and exits.
-The script is idempotent per ``target_year_month`` thanks to the
-state file at ``data/monthly_report_state.json`` — re-runs on the same
-month skip unless ``--force`` is passed.
+The script is idempotent per ``target_year_month`` thanks to the state
+file at ``data/monthly_report_state.json`` — re-runs on the same month
+skip unless ``--force`` is passed. ``--force`` uses retry-only
+semantics: parents whose delivery for the target month is already
+recorded in ``last_batch.deliveries`` are per-parent skipped, so only
+previously-failed recipients get a push (Issue #62). Delete
+``last_batch.deliveries`` from the state file manually to force a full
+re-send to every parent.
 
 Usage::
 
@@ -72,8 +77,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force",
         action="store_true",
         help=(
-            "Run even if a batch for the same target_year_month is already "
-            "recorded in data/monthly_report_state.json."
+            "Retry semantics: re-run even if a batch for the same "
+            "target_year_month is already recorded, but only push to "
+            "parents whose delivery is NOT already in "
+            "last_batch.deliveries (Issue #62). To force a full re-send, "
+            "delete last_batch.deliveries from "
+            "data/monthly_report_state.json manually."
         ),
     )
     return parser.parse_args(argv)

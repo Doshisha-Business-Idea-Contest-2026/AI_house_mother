@@ -229,14 +229,26 @@ def _record_batch(
     target_year_month: str,
     executed_at: datetime,
     counters: dict[str, int],
+    deliveries: dict[str, dict[str, str]],
+    *,
+    batch_id: str | None = None,
 ) -> str:
-    batch_id = f"MRB-{executed_at.isoformat()}"
+    """Persist the current batch state and return the batch id.
+
+    ``deliveries`` (Issue #62) is a ``{parent_user_id: {year_month,
+    sent_at}}`` map that grows one entry per successful push. Passing a
+    pre-computed ``batch_id`` lets the per-push checkpoint and the final
+    write share the same id.
+    """
+    if batch_id is None:
+        batch_id = f"MRB-{executed_at.isoformat()}"
     state = {
         "last_batch": {
             "batch_id": batch_id,
             "target_year_month": target_year_month,
             "executed_at": executed_at.isoformat(),
             "counters": counters,
+            "deliveries": deliveries,
         }
     }
     save_json(STATE_FILE, state)
@@ -272,8 +284,14 @@ def push_previous_month_to_all(
             is not supplied.
         target_year_month: Explicit ``"YYYY-MM"`` override for manual
             re-runs.
-        force: When ``True`` run even if the state file records the same
-            ``target_year_month`` as already delivered.
+        force: When ``True`` allow the batch to run even if the state
+            file already records the same ``target_year_month``. In this
+            retry mode, parents whose delivery is recorded in
+            ``last_batch.deliveries`` for the target month are
+            per-parent skipped so only the previously-failed recipients
+            get a push (Issue #62). To fully re-send to every parent,
+            delete ``last_batch.deliveries`` from the state file
+            manually.
 
     Returns:
         A summary dict::
@@ -289,6 +307,9 @@ def push_previous_month_to_all(
         counts) are silently skipped (``empty`` counter) and never
         generate a message. Per-parent LINE API errors are caught and
         counted in ``errors``; the batch proceeds to the next recipient.
+        On every successful push the state file is rewritten so a crash
+        mid-batch never re-sends to already-delivered parents (Issue
+        #62).
     """
     executed_at = (now_jst or datetime.now(JST)).astimezone(JST)
     ym = _resolve_target_year_month(now_jst, target_year_month)
@@ -313,8 +334,36 @@ def push_previous_month_to_all(
 
     year, month, _ym_string = _parse_year_month(ym)
 
+    # Preserve per-parent delivery history only when force-retrying the
+    # same target month (Issue #62). Different-month re-runs start with
+    # an empty deliveries map so the previous month's records are
+    # replaced along with the rest of last_batch.
+    if (
+        force
+        and last_batch is not None
+        and last_batch.get("target_year_month") == ym
+        and isinstance(last_batch.get("deliveries"), dict)
+    ):
+        deliveries: dict[str, dict[str, str]] = {
+            k: dict(v)
+            for k, v in last_batch["deliveries"].items()
+            if isinstance(v, dict)
+        }
+    else:
+        deliveries = {}
+
     counters = {"sent": 0, "empty": 0, "errors": 0}
+    batch_id = f"MRB-{executed_at.isoformat()}"
+
     for parent_user_id, student_user_id in parent_links.list_all_active_pairs():
+        prev_delivery = deliveries.get(parent_user_id)
+        if isinstance(prev_delivery, dict) and prev_delivery.get("year_month") == ym:
+            logger.info(
+                "monthly_push skipped parent=%s year_month=%s (already delivered)",
+                parent_user_id[:8],
+                ym,
+            )
+            continue
         try:
             report = _assemble_report(
                 student_user_id=student_user_id,
@@ -340,6 +389,17 @@ def push_previous_month_to_all(
                 raise_on_error=True,
             )
             counters["sent"] += 1
+            deliveries[parent_user_id] = {
+                "year_month": ym,
+                "sent_at": datetime.now(JST).isoformat(),
+            }
+            # Per-push checkpoint (Issue #62): rewrite the whole state so
+            # a crash between recipients does not lose the record. The
+            # JSON is small (parent count ≪ 100) so the extra write cost
+            # is acceptable.
+            _record_batch(
+                ym, executed_at, counters, deliveries, batch_id=batch_id
+            )
             logger.info(
                 "monthly_push sent parent=%s student=%s year_month=%s post_count=%d",
                 parent_user_id[:8],
@@ -356,7 +416,10 @@ def push_previous_month_to_all(
                 ym,
             )
 
-    batch_id = _record_batch(ym, executed_at, counters)
+    # Final checkpoint covers the "0 successful pushes" case (nothing to
+    # do, empty-only, all-errors, or all-already-delivered) so the state
+    # file always reflects the current run.
+    _record_batch(ym, executed_at, counters, deliveries, batch_id=batch_id)
     logger.info(
         "monthly_push batch_completed batch_id=%s year_month=%s counters=%s",
         batch_id,

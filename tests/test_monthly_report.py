@@ -406,3 +406,95 @@ class TestPushPreviousMonth(_TempDataDirMixin):
         assert result["skipped_batch"] is False
         assert state["last_batch"]["executed_at"] == "2026-07-01T09:00:00+09:00"
         assert result["batch_id"] == "MRB-2026-07-01T09:00:00+09:00"
+
+
+class TestPushPreviousMonthRetry(_TempDataDirMixin):
+    """Per-parent delivery tracking and --force retry semantics (Issue #62).
+
+    Covers three cases the audit flagged as regression paths: partial
+    failure records only the successful pushes, --force retry sends only
+    to previously-failed parents, and --force with everyone already
+    delivered is a no-op.
+    """
+
+    _PAIRS = [
+        ("P-alice", "S-alice"),
+        ("P-bob", "S-bob"),
+        ("P-carol", "S-carol"),
+    ]
+
+    def setup_method(self) -> None:
+        super().setup_method()
+        self._orig_list_all_active_pairs = parent_links.list_all_active_pairs
+        self._orig_push_flex = monthly_report.push_flex
+
+        parent_links.list_all_active_pairs = lambda: list(self._PAIRS)  # type: ignore[assignment]
+        self._push_calls: list[str] = []
+        self._fail_parents: set[str] = set()
+        monthly_report.push_flex = self._recording_push  # type: ignore[assignment]
+
+        # Seed one 2026-06 shared post per student so is_report_empty
+        # doesn't short-circuit the loop before push is even attempted.
+        for _parent_id, student_id in self._PAIRS:
+            _add_shared_post(student_id, datetime(2026, 6, 15, 9, 0, tzinfo=_JST))
+
+    def teardown_method(self) -> None:
+        parent_links.list_all_active_pairs = self._orig_list_all_active_pairs
+        monthly_report.push_flex = self._orig_push_flex  # type: ignore[assignment]
+        super().teardown_method()
+
+    def _recording_push(self, parent_user_id: str, **_: object) -> None:
+        self._push_calls.append(parent_user_id)
+        if parent_user_id in self._fail_parents:
+            raise RuntimeError(f"simulated LINE API failure for {parent_user_id}")
+
+    def _run(self, *, force: bool) -> dict[str, Any]:
+        now_utc = datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc)
+        return monthly_report.push_previous_month_to_all(
+            now_jst=now_utc,
+            target_year_month="2026-06",
+            force=force,
+        )
+
+    def test_partial_failure_records_only_successful_deliveries(self) -> None:
+        self._fail_parents = {"P-bob"}
+
+        result = self._run(force=True)
+        state = storage.load_json(monthly_report.STATE_FILE)
+
+        assert self._push_calls == ["P-alice", "P-bob", "P-carol"]
+        assert result["counters"] == {"sent": 2, "empty": 0, "errors": 1}
+        deliveries = state["last_batch"]["deliveries"]
+        assert set(deliveries.keys()) == {"P-alice", "P-carol"}
+        assert deliveries["P-alice"]["year_month"] == "2026-06"
+        assert "P-bob" not in deliveries
+
+    def test_force_retry_only_pushes_previously_failed_parents(self) -> None:
+        self._fail_parents = {"P-bob"}
+        self._run(force=True)
+        self._push_calls.clear()
+
+        # Retry: this time P-bob succeeds.
+        self._fail_parents = set()
+        result = self._run(force=True)
+        state = storage.load_json(monthly_report.STATE_FILE)
+
+        assert self._push_calls == ["P-bob"]
+        assert result["counters"] == {"sent": 1, "empty": 0, "errors": 0}
+        deliveries = state["last_batch"]["deliveries"]
+        assert set(deliveries.keys()) == {"P-alice", "P-bob", "P-carol"}
+
+    def test_force_run_with_all_delivered_is_a_noop(self) -> None:
+        self._run(force=True)
+        self._push_calls.clear()
+
+        result = self._run(force=True)
+        state = storage.load_json(monthly_report.STATE_FILE)
+
+        assert self._push_calls == []
+        assert result["counters"] == {"sent": 0, "empty": 0, "errors": 0}
+        assert set(state["last_batch"]["deliveries"].keys()) == {
+            "P-alice",
+            "P-bob",
+            "P-carol",
+        }
