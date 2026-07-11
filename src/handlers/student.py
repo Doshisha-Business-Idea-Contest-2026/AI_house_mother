@@ -932,7 +932,9 @@ _POST_AREA_PROMPT = (
 )
 _POST_ENTRY_PROMPTS: dict[str, tuple[str, Any]] = {
     "post.summary": (
-        "✏️ 何をしましたか？できごとの概要を教えてください。",
+        "✏️ 何をしましたか？できごとの概要を教えてください。\n"
+        "🔒 他の人（友人・お店の人・先生など）の氏名は書かないでね"
+        "（他の学生の相談に参考として匿名で共有されます）。",
         cancel_quick_reply,
     ),
     "post.learned": (
