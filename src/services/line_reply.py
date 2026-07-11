@@ -30,6 +30,7 @@ def reply_text(
     reply_token: str,
     text: str,
     quick_reply: Optional[QuickReply] = None,
+    raise_on_error: bool = False,
 ) -> None:
     """Reply with a plain text message.
 
@@ -37,6 +38,11 @@ def reply_text(
         reply_token: Token from the incoming LINE event.
         text: Message body.
         quick_reply: Optional Quick Reply attached to the message.
+        raise_on_error: When ``True`` re-raise any exception raised by
+            the LINE SDK so the caller can fall back to a push, roll a
+            session state back, or count failures. Defaults to ``False``
+            for the fire-and-forget style used by the interactive
+            handlers (Issue #63).
     """
     message = TextMessage(text=text)
     if quick_reply is not None:
@@ -50,6 +56,8 @@ def reply_text(
             )
     except Exception:
         logger.exception("reply_text failed")
+        if raise_on_error:
+            raise
 
 
 def reply_flex(
@@ -57,6 +65,7 @@ def reply_flex(
     alt_text: str,
     contents: dict,
     quick_reply: Optional[QuickReply] = None,
+    raise_on_error: bool = False,
 ) -> None:
     """Reply with a Flex message.
 
@@ -65,6 +74,11 @@ def reply_flex(
         alt_text: Fallback text shown in notifications.
         contents: Flex message contents (bubble or carousel dict).
         quick_reply: Optional Quick Reply attached to the message.
+        raise_on_error: When ``True`` re-raise any exception raised by
+            the LINE SDK so the caller can fall back to a push, roll a
+            session state back, or count failures. Defaults to ``False``
+            for the fire-and-forget style used by the interactive
+            handlers (Issue #63).
     """
     message = FlexMessage(alt_text=alt_text, contents=FlexContainer.from_dict(contents))
     if quick_reply is not None:
@@ -78,6 +92,8 @@ def reply_flex(
             )
     except Exception:
         logger.exception("reply_flex failed")
+        if raise_on_error:
+            raise
 
 
 def push_text(

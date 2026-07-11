@@ -1222,18 +1222,24 @@ def _run_post_finalize(event: PostbackEvent) -> None:
     """Run the LLM finalize call, then branch on the validity gate.
 
     Triggered right after the parent-share choice, when all fields are
-    collected. Shows a Loading Indicator while ``gemini.finalize_post``
-    generates the title, normalizes the period, and judges validity
+    collected. Consumes ``event.reply_token`` up front with a light
+    acknowledgement so the 30 s reply window does not expire while
+    ``gemini.finalize_post`` is running (Issue #50); the actual response
+    is delivered via push. Shows a Loading Indicator alongside the ack
     (T4.15, docs/06 §4.5). ``finalize_post`` never raises for API
     problems, but we still guard defensively.
 
     - ``valid`` → store title/period and push the review card
-      (``post.confirm``).
-    - invalid → do **not** save. Clear the session, send the fixed
+      (``post.confirm``). On push failure, roll the session back to
+      ``post.share_parent`` and notify the user (Issue #50).
+    - invalid → do **not** save. Clear the session, push the fixed
       warning, and still draw the prize lottery (docs/04 §4.5 / §4.9).
     """
     user_id = event.source.user_id
     ctx = _context_snapshot(user_id)
+    # Consume the reply_token before the Gemini call (Issue #50). Failure
+    # here is non-fatal — show_loading + the subsequent push still work.
+    reply_text(event.reply_token, "投稿内容を整理中です…")
     show_loading(user_id)
 
     today = datetime.now(_JST).strftime("%Y-%m-%d")
@@ -1267,8 +1273,9 @@ def _run_post_finalize(event: PostbackEvent) -> None:
     if not valid:
         logger.info("post_rejected user=%s reason=%s", user_id[:8], reason[:80])
         session.clear_state(user_id)
-        reply_text(
-            event.reply_token,
+        # reply_token was already spent on the ack above; use push here.
+        push_text(
+            user_id,
             _POST_INVALID_WARNING,
             quick_reply=main_menu_quick_reply("student"),
         )
@@ -1281,11 +1288,25 @@ def _run_post_finalize(event: PostbackEvent) -> None:
     _record(user_id, "period", period)
     ctx = _context_snapshot(user_id)
     session.set_state(user_id, "post.confirm", **ctx)
-    push_text(
-        user_id,
-        _build_post_confirmation_text(ctx),
-        quick_reply=post_confirm_quick_reply(),
-    )
+    try:
+        push_text(
+            user_id,
+            _build_post_confirmation_text(ctx),
+            quick_reply=post_confirm_quick_reply(),
+            raise_on_error=True,
+        )
+    except Exception:
+        logger.exception(
+            "post confirmation push failed user=%s; rolling back to post.share_parent",
+            user_id[:8],
+        )
+        push_text(
+            user_id,
+            "エラーが発生しました。もう一度『保護者に共有しますか？』からやり直してください。",
+        )
+        session.set_state(
+            user_id, "post.share_parent", **_context_snapshot(user_id)
+        )
 
 
 def _send_post_confirmation(event: PostbackEvent) -> None:

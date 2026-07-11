@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.services import prizes  # noqa: E402
+from src.services import users as users_svc  # noqa: E402
 from src.services.line_reply import push_flex  # noqa: E402
 from src.services.storage import load_json  # noqa: E402
 from src.templates.flex.prize_result import build_prize_result_bubble  # noqa: E402
@@ -83,6 +84,17 @@ def main() -> int:
             )
         print("[dry-run] no draw run, no message sent.")
         return 0
+
+    # Guard against typos before writing to prize_draws.json / calling
+    # LINE push. Without this check, an unknown user_id would still leave
+    # a permanent draw record while push failed (Issue #55).
+    if users_svc.get_user(args.user_id) is None:
+        print(
+            f"user_id '{args.user_id}' not found in users.json. "
+            "Use --list to see registered users.",
+            file=sys.stderr,
+        )
+        return 2
 
     force_rank: int | None = None
     if args.rank is not None:
