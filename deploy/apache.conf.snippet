@@ -11,9 +11,18 @@
 #
 # After deploy, the LINE webhook URL becomes:
 #   https://linebot.kmchan.jp/ai_house_mother/callback
+#
+# /ai_house_mother/health is restricted to localhost (Issue #73) so the
+# process-liveness probe is not exposed to the public internet. Apache
+# evaluates <Location> from most specific to least specific, so the
+# nested /health block wins over the parent /ai_house_mother block.
 
 ProxyPass /ai_house_mother http://localhost:8084/ai_house_mother
 ProxyPassReverse /ai_house_mother http://localhost:8084/ai_house_mother
+
+<Location /ai_house_mother/health>
+    Require ip 127.0.0.1 ::1
+</Location>
 
 <Location /ai_house_mother>
     Require all granted
