@@ -515,7 +515,13 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
         "batch_id": "MRB-2026-08-01T09:00:00+09:00",
         "target_year_month": "2026-07",
         "executed_at": "2026-08-01T09:00:12+09:00",
-        "counters": {"sent": 3, "empty": 1, "errors": 0}
+        "counters": {"sent": 3, "empty": 1, "errors": 0},
+        "deliveries": {
+            "<parent_user_id>": {
+                "year_month": "2026-07",
+                "sent_at": "2026-08-01T09:00:12+09:00"
+            }
+        }
     }
 }
 ```
@@ -529,14 +535,19 @@ def issue_code(student_user_id: str) -> dict[str, Any]:
 | `last_batch.target_year_month` | string | 集計対象年月（`"YYYY-MM"`） |
 | `last_batch.executed_at` | string | 実際の実行完了時刻（ISO 8601 + tz） |
 | `last_batch.counters` | object | `{"sent": int, "empty": int, "errors": int}` |
+| `last_batch.deliveries` | object | 個別配信履歴。キーは parent の生 `line_user_id`、値は `{"year_month": "YYYY-MM", "sent_at": ISO 8601}`（Issue #62 で追加） |
 
 **二重実行防止**:
 
-`push_previous_month_to_all(target_year_month=T)` は実行前に `last_batch.target_year_month == T` かをチェックし、一致すれば skip（戻り値の `skipped_batch=True`）。`--force` フラグで上書き実行可能（デモ・再送用）。
+`push_previous_month_to_all(target_year_month=T)` は実行前に `last_batch.target_year_month == T` かをチェックし、一致すれば skip（戻り値の `skipped_batch=True`）。`--force` フラグは「エラーで未配信の parent のみ再送」の retry セマンティクスで動く（Issue #62）。`deliveries` に `year_month == T` のエントリがある parent は per-parent スキップし、`empty` / `errors` を除いた成功済み parent を重複配信しない。全 parent に強制再送したい場合は state ファイルの `deliveries` を手動で削除する（今後の展望として `--reset-deliveries` フラグを導入する余地あり）。
+
+**per-push 永続化**:
+
+`push_previous_month_to_all` は 1 parent へ push_flex が成功するたびに `deliveries` を更新して `save_json(STATE_FILE, ...)` を都度呼ぶ。バッチ完了前に落ちても既配信分は残り、再実行時の重複配信を防ぐ。
 
 **初期化**:
 
-`scripts/init_data.py` が `{"last_batch": null}` の空スケルトンを作成する。既存ファイルは上書きしない。
+`scripts/init_data.py` が `{"last_batch": null}` の空スケルトンを作成する。既存ファイルは上書きしない。既存 state ファイルに `deliveries` フィールドが無い場合は空オブジェクト扱い（後方互換）。
 
 ### 4.12 sponsored.json（seed、架空）
 
@@ -1047,3 +1058,4 @@ def list_all_for_context() -> list[dict[str, Any]]:
 | 2026-07-10 | プレゼントくじ引き（FR-S11）の docs-first: §4.17 prizes.json（seed、等級 `rank` 付き）と §4.18 prize_draws.json（ランタイム、抽選履歴・等級/はずれ・**PII 非収集**・抽選 seed 保持。応募口数 `entries` は廃止）を新設、§2 ツリー・gitignore・init 対象を 11 種に更新 | kmch4n |
 | 2026-07-10 | §4.17 prizes.json に `valid_until`（有効期限ダミー）・`note`（利用条件）を追加、2 等を「地元名店 ペアお食事券」に変更（当落 Flex の情報カード表示に対応） | kmch4n |
 | 2026-07-11 | §4.9 senior_posts.json 末尾に「実在化データ（areas / events / stores）は LINE チャットからの自動蓄積の対象外」cross-reference を追加。Issue #22 の意思決定を `docs/02_mvp_scope.md §7-9` に集約 | kmch4n |
+| 2026-07-11 | §4.11 monthly_report_state.json に `last_batch.deliveries` フィールドを追加（個別配信履歴、per-push 永続化）。`--force` の意味を「エラー分のみ retry」に再定義し、既配信 parent の重複配信を防ぐ（Issue #62 の docs-first） | kmch4n |
