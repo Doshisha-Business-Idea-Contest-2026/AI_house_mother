@@ -3,7 +3,6 @@
 > **⚠️ 運用ステータス: 停止中（Retired）** — 2026-07-11 をもってデモ運用を終了しました。
 > LINE Webhook 無効化 / `systemd` 停止・`disable` / Apache proxy スニペット削除まで実施済みです。
 > 大会用 MVP としての稼働は終了していますが、リポジトリ本体は事後参照のため保存しています。
-> 詳細は本 README 末尾の [運用ステータス](#運用ステータスretired) 節を参照してください。
 
 学生マンションに眠る先輩の経験・地域情報・学生の興味関心を AI に蓄積し、初めての一人暮らしの
 不安解消と、「学び・成長・つながり」のきっかけづくりを実現する **LINE Bot** です。
@@ -120,36 +119,6 @@ flowchart LR
 | [docs/09_tasks.md](docs/09_tasks.md) | 開発タスク |
 
 開発規約は [.codex/AGENTS.md](.codex/AGENTS.md) と [.codex/rules/](.codex/rules/) を参照。
-
-## 運用ステータス（Retired）
-
-同志社大学ビジネスアイデア大会 2026 決勝プレゼン向け MVP として稼働してきましたが、
-**2026-07-11** をもってデモ運用を終了しました。以降、Gemini API・LINE Messaging API・
-自宅サーバーリソースの継続コストを止めるため、下記の通り撤収済みです。
-
-### 停止した構成要素
-
-| レイヤー | 状態 |
-| --- | --- |
-| LINE Developers Console | Webhook 無効化（新規イベント受信なし） |
-| systemd `ai_house_mother.service` | `stop` + `disable` 実施。ポート 8084 は解放 |
-| systemd `ai_house_mother_monthly.timer` | 未インストールだったため停止不要（記録用に明記） |
-| Apache proxy (`linebot.kmchan.jp{,-le-ssl}.conf`) | `/ai_house_mother` 用 ProxyPass / Location ブロックを削除、`reload apache2` 済み |
-| ランタイム JSON | `~/backups/ai_house_mother/data_YYYYMMDD_HHMMSS.tar.gz` にバックアップ済み |
-
-### 残置しているもの
-
-- リポジトリ本体（本ディレクトリ）
-- `.venv/` と `.env`（LINE / Gemini トークンは revoke していない）
-- `data/*.json`（ランタイム状態はディスク上に残置。バックアップは別途取得）
-- `/etc/systemd/system/ai_house_mother.service`（`disable` のみ、unit ファイルは残存）
-
-### 再稼働する場合
-
-1. [`deploy/README.md`](deploy/README.md) の Setup 手順を再度実行し、`ai_house_mother.service` を `enable --now`。
-2. Apache 設定 (`linebot.kmchan.jp.conf` / `linebot.kmchan.jp-le-ssl.conf`) に [`deploy/apache.conf.snippet`](deploy/apache.conf.snippet) の内容を貼り戻し、`apache2ctl configtest` → `systemctl reload apache2`。
-3. LINE Developers Console で Webhook を再度有効化。
-4. `curl https://linebot.kmchan.jp/ai_house_mother/health` で 200 応答を確認。
 
 ## ライセンス
 
