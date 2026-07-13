@@ -29,3 +29,6 @@ data/usage_stats.json
 data/coupon_distributions.json
 data/prize_draws.json
 data/.locks/
+
+# Presentation artifacts (kept locally, not committed)
+slide.pdf
